@@ -14,6 +14,7 @@ Blackout is built for desks where external monitors are shared between a Mac and
 - Disconnect/reconnect an individual monitor from the menu bar.
 - Rename monitors; names follow their stable display identities.
 - Record global shortcuts in Settings, with conflict warnings.
+- Identify a monitor from Settings: it's outlined in red with its name.
 - Reconnect All, including a reserved global shortcut.
 - Protect the last active display and built-in displays.
 - Optional Launch at Login through macOS ServiceManagement.
@@ -29,6 +30,8 @@ Blackout is built for desks where external monitors are shared between a Mac and
 | Reconnect All | Control–Option–0 |
 
 Open **Settings…** to rename monitors and change shortcuts, then **Save Changes**. To set a shortcut, click it and press the keys you want: a letter or digit with Control, Option or Command (Shift is optional). Esc cancels recording and Delete clears the shortcut. Physical key positions use the US mapping. Control–Option–0 is reserved.
+
+Not sure which row is which screen? Click **Identify** to outline that monitor in red with its name for a couple of seconds. It's available only for monitors that are currently on the desktop.
 
 Conflicts are flagged as you record. These are shown in red and block saving: a shortcut used by another monitor, the reserved Control–Option–0, or a standard app shortcut such as ⌘C (Copy), ⌘V or ⌘Z, because a global shortcut would replace it in every app. These are shown in orange and can still be saved: an enabled macOS keyboard shortcut (macOS may catch it first), or another Command-only combination such as ⌘1. A specific app's own custom shortcuts can't be detected.
 

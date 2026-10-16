@@ -24,6 +24,10 @@ public enum MonitorPolicy {
     public static func canForget(uuid:String,online:Set<String>,disabled:Set<String>) -> Bool {
         !online.contains(uuid) && !disabled.contains(uuid)
     }
+    /// Only a monitor that is part of the desktop has a screen to outline.
+    public static func canIdentify(_ monitor:MonitorRecord,disabled:Set<String>) -> Bool {
+        monitor.active && !disabled.contains(monitor.uuid)
+    }
 }
 
 public struct ShortcutSpec: Codable, Equatable, Hashable {
