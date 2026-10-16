@@ -1,0 +1,17 @@
+# Generated output and machine-specific verification data
+/build/
+/dist/
+.DS_Store
+**/__pycache__/
+*.pyc
+*.log
+.env
+.env.*
+*.pem
+*.key
+
+# IDE-local settings
+/.swiftpm/
+/.build/
+*.xcuserstate
+xcuserdata/
