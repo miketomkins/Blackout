@@ -1,0 +1,2 @@
+# Mechanical swift-format reformat; skip in git blame (git config blame.ignoreRevsFile .git-blame-ignore-revs).
+a0bb87193af6ff99b67960492ac6d7f483d11a75
