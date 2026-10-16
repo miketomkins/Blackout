@@ -93,13 +93,16 @@ public final class PreferencesStore {
     }
     public func seedDefaults(_ monitors:[MonitorRecord]) {
         let externals = monitors.filter { !$0.isBuiltIn }.sorted { $0.x == $1.x ? $0.uuid < $1.uuid : $0.x < $1.x }
+        // Never hand out a key that is already taken: one duplicate would make the whole set unregistrable.
+        var used = Set(externals.compactMap { shortcut(for:$0.uuid) }).union([.reconnectAll])
         for (index,m) in externals.enumerated() {
             if allAliases()[m.uuid] == nil {
                 setAlias(externals.count == 2 ? (index == 0 ? "Left" : "Right") : "Display \(index+1)",for:m.uuid)
             }
             if shortcut(for:m.uuid) == nil {
-                let key = externals.count == 2 ? (index == 0 ? "l" : "r") : String(min(index+1,9))
-                setShortcut(ShortcutSpec(modifiers:[.control,.option],key:key),for:m.uuid)
+                let preferred = externals.count == 2 ? [index == 0 ? "l" : "r"] : (index < 9 ? [String(index+1)] : [])
+                let candidates = (preferred + (1...9).map(String.init)).map { ShortcutSpec(modifiers:[.control,.option],key:$0) }
+                if let spec = candidates.first(where: { !used.contains($0) }) { setShortcut(spec,for:m.uuid); used.insert(spec) }
             }
         }
     }
