@@ -12,6 +12,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 - A monitor's shortcut can now be cleared. A cleared shortcut stays cleared instead of being re-seeded, and Settings no longer fills an empty shortcut with `ctrl+alt+r`. ([#2](https://github.com/miketomkins/Blackout/issues/2))
 
 ### Fixed
+- A display that briefly has no ID (around wake or reconfiguration) is now skipped instead of making the whole menu show "Display state unavailable". A failed read while a change is being confirmed is retried instead of reporting a change that worked as an error. ([#4](https://github.com/miketomkins/Blackout/issues/4))
 - Reconnect All (⌃⌥0) is now registered on its own, so a problem with any per-monitor shortcut can no longer disable it. ([#1](https://github.com/miketomkins/Blackout/issues/1))
 - Default shortcuts never reuse a key that's already taken. Previously a monitor added later, or more than nine saved monitors, could produce duplicates that left Blackout with no global shortcuts at launch. ([#1](https://github.com/miketomkins/Blackout/issues/1))
 - A saved duplicate shortcut is now skipped with a warning instead of blocking every other monitor's shortcut. ([#1](https://github.com/miketomkins/Blackout/issues/1))
