@@ -2,6 +2,8 @@ import AppKit
 import CoreGraphics
 import ServiceManagement
 
+let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+
 private let displayChanged:CGDisplayReconfigurationCallBack = { _,flags,context in
     guard !flags.contains(.beginConfigurationFlag), let context else { return }
     let delegate = Unmanaged<AppDelegate>.fromOpaque(context).takeUnretainedValue()
@@ -20,6 +22,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
     var refreshWork:DispatchWorkItem?
     var shortcutError:String?
     var busy = false
+    var poweringOff = false
     let operations = DispatchQueue(label:"com.miketomkins.Blackout.display-operations")
 
     func applicationDidFinishLaunching(_ notification:Notification) {
@@ -29,6 +32,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
         statusItem.button?.setAccessibilityLabel("Blackout")
         statusItem.button?.toolTip = "Blackout — monitor toggles"
         menu.delegate = self; statusItem.menu = menu
+        NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.willPowerOffNotification,object:nil,queue:.main) { [weak self] _ in self?.poweringOff = true }
         hotkeys.onPress = { [weak self] id in
             guard let self, Date().timeIntervalSince(self.lastHotkeyTime) > 0.45, !self.busy else { return }
             self.lastHotkeyTime = Date()
@@ -130,7 +134,11 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
     }
     @objc func showAbout() {
         NSApp.activate(ignoringOtherApps:true)
-        NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"Blackout",.applicationVersion:"1.0.0",.credits:NSAttributedString(string:"Disconnect a monitor. Keep your focus.\nControl–Option–L / R · Reconnect all: Control–Option–0\nCustom shortcuts and Launch at Login are in Settings.\nUses a private macOS display API; local build, not notarized.")])
+        // Version and build come from Info.plist; the shortcut line reflects the saved settings.
+        let monitors = ((try? backend.enumerate(store:store,remember:false)) ?? []).filter { !$0.isBuiltIn }
+        let shortcuts = monitors.compactMap { m in store.shortcut(for:m.uuid).map { "\(m.alias) \($0.display)" } }
+        let credits = ["Disconnect a monitor. Keep your focus.",(shortcuts.isEmpty ? "No monitor shortcuts set" : shortcuts.joined(separator:" · ")) + " · Reconnect all \(ShortcutSpec.reconnectAll.display)","Custom shortcuts and Launch at Login are in Settings.","Uses a private macOS display API; local build, not notarized."]
+        NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"Blackout",.credits:NSAttributedString(string:credits.joined(separator:"\n"))])
     }
     @objc func quit() { NSApp.terminate(nil) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
@@ -140,7 +148,8 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
         for uuid in store.disabledUUIDs {
             do { try backend.setEnabled(uuid:uuid,enabled:true,store:store) } catch { errors.append(error.localizedDescription) }
         }
-        if !errors.isEmpty {
+        // Never block logout, restart or shutdown with a dialog: displays set off for this session return at the next login.
+        if !errors.isEmpty, !poweringOff {
             let alert = NSAlert(); alert.messageText = "Some monitors could not reconnect"; alert.informativeText = errors.joined(separator:"\n") + "\nQuit anyway? Blackout will remember them for next launch."; alert.addButton(withTitle:"Cancel"); alert.addButton(withTitle:"Quit Anyway")
             if alert.runModal() == .alertFirstButtonReturn { return .terminateCancel }
         }

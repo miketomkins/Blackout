@@ -12,7 +12,7 @@ do {
     }
     if args == ["--diagnostics"] {
         store.reload()
-        try output(["app":"Blackout","version":"1.0.0","loginStatus":SMAppService.mainApp.status.rawValue,"ownedDisconnectedCount":store.disabledUUIDs.count,"preferenceDomain":PreferencesStore.suite]); exit(0)
+        try output(["app":"Blackout","version":appVersion,"loginStatus":SMAppService.mainApp.status.rawValue,"ownedDisconnectedCount":store.disabledUUIDs.count,"preferenceDomain":PreferencesStore.suite]); exit(0)
     }
     if args.count == 2, ["--toggle","--connect","--disconnect"].contains(args[0]) {
         guard UUID(uuidString:args[1]) != nil else { throw BlackoutError.unavailable("Supply a monitor UUID from --list.") }
@@ -21,10 +21,16 @@ do {
         exit(0)
     }
     if args == ["--connect-all"] {
-        for monitor in try backend.enumerate(store:store) where !monitor.active && !monitor.isBuiltIn { try backend.setEnabled(uuid:monitor.uuid,enabled:true,store:store) }; exit(0)
+        // Like the menu's Reconnect All: try every monitor, then report all failures together.
+        var failures:[String] = []
+        for monitor in try backend.enumerate(store:store) where !monitor.active && !monitor.isBuiltIn {
+            do { try backend.setEnabled(uuid:monitor.uuid,enabled:true,store:store) } catch { failures.append("\(monitor.alias): \(error.localizedDescription)") }
+        }
+        guard failures.isEmpty else { throw BlackoutError.failed(failures.joined(separator:"\n")) }
+        exit(0)
     }
     if args == ["--help"] {
-        print("Blackout 1.0.0\n  --list                 Read-only display inventory JSON\n  --diagnostics          Read-only login/preference status\n  --toggle UUID          Toggle a monitor\n  --connect UUID         Reconnect a known monitor\n  --disconnect UUID      Disconnect a monitor (last display protected)\n  --connect-all          Reconnect known monitors\n  --show-settings        Open Settings\nNo arguments launches the menu-bar app. Quit reconnects monitors Blackout disabled."); exit(0)
+        print("Blackout \(appVersion)\n  --list                 Read-only display inventory JSON\n  --diagnostics          Read-only login/preference status\n  --toggle UUID          Toggle a monitor\n  --connect UUID         Reconnect a known monitor\n  --disconnect UUID      Disconnect a monitor (last display protected)\n  --connect-all          Reconnect known monitors\n  --show-settings        Open Settings\nNo arguments launches the menu-bar app. Quit reconnects monitors Blackout disabled."); exit(0)
     }
     guard args.isEmpty || args == ["--show-settings"] else { fputs("Unknown or incomplete arguments. Run Blackout --help.\n",stderr); exit(2) }
 } catch { fputs("Blackout: \(error.localizedDescription)\n",stderr); exit(1) }

@@ -9,10 +9,15 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 - Conflict flagging while recording: duplicates, the reserved ⌃⌥0 and standard app shortcuts such as ⌘C, ⌘V and ⌘Z are shown in red and block saving; enabled macOS keyboard shortcuts and other Command-only combinations are shown in orange as a warning. ([#6](https://github.com/miketomkins/Blackout/issues/6))
 
 ### Changed
+- The version is now set only in `build.sh`; the app and CLI read it from Info.plist. ([#5](https://github.com/miketomkins/Blackout/issues/5))
 - Settings shows each monitor's status (Connected, Inactive, Off (Blackout), Not connected) and a **Forget** button for monitors that aren't connected, so old projectors and TVs no longer pile up. Monitors Blackout itself disconnected can't be forgotten, because their saved address is needed to reconnect them. ([#2](https://github.com/miketomkins/Blackout/issues/2))
 - A monitor's shortcut can now be cleared. A cleared shortcut stays cleared instead of being re-seeded, and Settings no longer fills an empty shortcut with `ctrl+alt+r`. ([#2](https://github.com/miketomkins/Blackout/issues/2))
 
 ### Fixed
+- The About panel shows your actual shortcuts instead of always saying ⌃⌥L / R, and shows the version and build from the app bundle. ([#5](https://github.com/miketomkins/Blackout/issues/5))
+- `--connect-all` tries every monitor and reports all failures, like the menu's Reconnect All, instead of stopping at the first one. ([#5](https://github.com/miketomkins/Blackout/issues/5))
+- Quitting during logout, restart or shutdown no longer shows a dialog that blocks it when a monitor can't reconnect. ([#5](https://github.com/miketomkins/Blackout/issues/5))
+- The README documents `--disconnect UUID`. ([#5](https://github.com/miketomkins/Blackout/issues/5))
 - A display that briefly has no ID (around wake or reconfiguration) is now skipped instead of making the whole menu show "Display state unavailable". A failed read while a change is being confirmed is retried instead of reporting a change that worked as an error. ([#4](https://github.com/miketomkins/Blackout/issues/4))
 - Reconnect All (⌃⌥0) is now registered on its own, so a problem with any per-monitor shortcut can no longer disable it. ([#1](https://github.com/miketomkins/Blackout/issues/1))
 - Default shortcuts never reuse a key that's already taken. Previously a monitor added later, or more than nine saved monitors, could produce duplicates that left Blackout with no global shortcuts at launch. ([#1](https://github.com/miketomkins/Blackout/issues/1))
