@@ -20,6 +20,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
     var refreshWork:DispatchWorkItem?
     var shortcutError:String?
     var busy = false
+    let operations = DispatchQueue(label:"com.miketomkins.Blackout.display-operations")
 
     func applicationDidFinishLaunching(_ notification:Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -77,7 +78,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
             for display in monitors {
                 let item = NSMenuItem(title:"\(display.active ? "Disconnect" : "Connect") \(display.alias)",action:#selector(toggle(_:)),keyEquivalent:"")
                 item.target = self; item.representedObject = display.uuid
-                item.isEnabled = !display.isBuiltIn && (!display.active || activeCount > 1)
+                item.isEnabled = !busy && !display.isBuiltIn && (!display.active || activeCount > 1)
                 if let shortcut = store.shortcut(for:display.uuid) { item.keyEquivalent = shortcut.key; item.keyEquivalentModifierMask = shortcut.modifiers.eventFlags }
                 menu.addItem(item)
             }
@@ -94,19 +95,29 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
     }
     @objc func toggle(_ sender:NSMenuItem) { if let uuid = sender.representedObject as? String { toggleUUID(uuid) } }
     func toggleUUID(_ uuid:String) {
-        guard !busy else { return }; busy = true; defer { busy = false }
-        do { try backend.toggle(uuid:uuid,store:store); buildMenu() } catch { showError(error) }
+        perform { [backend,store] in try backend.toggle(uuid:uuid,store:store); return [] }
     }
     @objc func reconnectAll() {
-        guard !busy else { return }; busy = true; defer { busy = false }
-        var errors:[String] = []
-        do {
+        perform { [backend,store] in
+            var errors:[String] = []
             for monitor in try backend.enumerate(store:store) where !monitor.active && !monitor.isBuiltIn {
                 do { try backend.setEnabled(uuid:monitor.uuid,enabled:true,store:store) } catch { errors.append("\(monitor.alias): \(error.localizedDescription)") }
             }
-        } catch { errors.append(error.localizedDescription) }
-        buildMenu()
-        if !errors.isEmpty { showError(BlackoutError.failed(errors.joined(separator:"\n"))) }
+            return errors
+        }
+    }
+    // A change can wait seconds for the lock and for macOS to confirm it; keep that off the main thread.
+    // busy stays set until any error alert is dismissed, so shortcuts and menu items cannot queue more work.
+    private func perform(_ work:@escaping () throws -> [String]) {
+        guard !busy else { return }; busy = true; buildMenu()
+        operations.async {
+            let errors:[String]
+            do { errors = try work() } catch { errors = [error.localizedDescription] }
+            DispatchQueue.main.async {
+                if !errors.isEmpty { self.showError(BlackoutError.failed(errors.joined(separator:"\n"))) }
+                self.busy = false; self.buildMenu()
+            }
+        }
     }
     @objc func showSettings() {
         let controller = SettingsViewController(delegate:self)
@@ -124,6 +135,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
     @objc func quit() { NSApp.terminate(nil) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         var errors:[String] = []
+        operations.sync {} // Let an in-flight change finish before restoring displays.
         store.reload()
         for uuid in store.disabledUUIDs {
             do { try backend.setEnabled(uuid:uuid,enabled:true,store:store) } catch { errors.append(error.localizedDescription) }
