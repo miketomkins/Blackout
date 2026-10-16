@@ -15,7 +15,7 @@ A small macOS menu-bar app for disconnecting and reconnecting external monitors,
 - Reconnect All, including a reserved global shortcut.
 - Protect the last active display and built-in displays.
 - Optional Launch at Login through macOS ServiceManagement.
-- Remember disconnected monitors across app restarts.
+- Remember disconnected monitors across app restarts, and forget monitors that are no longer connected.
 - Reconnect displays Blackout disabled when quitting normally.
 
 ### Two-monitor defaults
