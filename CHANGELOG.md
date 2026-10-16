@@ -8,6 +8,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 - Reconnect All (⌃⌥0) is now registered on its own, so a problem with any per-monitor shortcut can no longer disable it. ([#1](https://github.com/miketomkins/Blackout/issues/1))
 - Default shortcuts never reuse a key that's already taken. Previously a monitor added later, or more than nine saved monitors, could produce duplicates that left Blackout with no global shortcuts at launch. ([#1](https://github.com/miketomkins/Blackout/issues/1))
 - A saved duplicate shortcut is now skipped with a warning instead of blocking every other monitor's shortcut. ([#1](https://github.com/miketomkins/Blackout/issues/1))
+- The menu bar no longer freezes while a display change is waiting for the lock or for macOS to confirm it. Changes run on a background queue, and monitor menu items are disabled until the change finishes. ([#3](https://github.com/miketomkins/Blackout/issues/3))
 
 ## [1.0.0-beta.1] - 2026-10-16
 
