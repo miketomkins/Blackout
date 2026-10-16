@@ -3,8 +3,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"; APP="$ROOT/build/Blackout.app"
 # The only place the version is set; the app and CLI read it from Info.plist.
 VERSION="1.0.0"; BUILD="1"
+cd "$ROOT"
+swift build -c release --product Blackout
+BIN="$(swift build -c release --show-bin-path)/Blackout"
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-swiftc -swift-version 5 -O "$ROOT"/Sources/*.swift -o "$APP/Contents/MacOS/Blackout" -framework AppKit -framework CoreGraphics -framework Carbon -framework ServiceManagement
+cp "$BIN" "$APP/Contents/MacOS/Blackout"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

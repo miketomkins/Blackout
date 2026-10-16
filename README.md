@@ -49,7 +49,7 @@ The build is **ad-hoc signed, not Developer ID signed or notarized**; macOS may 
 
 ## Build and test
 
-Requires macOS and an installed Swift compiler / Xcode Command Line Tools. No third-party package dependencies are required.
+Requires macOS and an installed Swift compiler / Xcode Command Line Tools. No third-party package dependencies are required. The project is a Swift package (`Package.swift`): `BlackoutCore` holds the display backend and settings logic, `Blackout` is the menu-bar app and CLI, and you can open the folder in Xcode. `build.sh` builds the package and wraps the binary in `Blackout.app`. `test.sh` rebuilds, then runs the `CoreChecks` and `BackendChecks` programs and the CLI tests. These are plain programs rather than XCTest targets, so they run with only the Command Line Tools.
 
 ```sh
 git clone https://github.com/miketomkins/Blackout.git

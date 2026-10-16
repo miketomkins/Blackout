@@ -10,6 +10,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 - Conflict flagging while recording: duplicates, the reserved ⌃⌥0 and standard app shortcuts such as ⌘C, ⌘V and ⌘Z are shown in red and block saving; enabled macOS keyboard shortcuts and other Command-only combinations are shown in orange as a warning. ([#6](https://github.com/miketomkins/Blackout/issues/6))
 
 ### Changed
+- The project is now a Swift package (`BlackoutCore` library plus the `Blackout` app), Settings has its own file, and the code is formatted with swift-format. `test.sh` rebuilds before testing, so it works on a fresh clone. GitHub Actions runs lint, build and tests on every pull request. ([#6](https://github.com/miketomkins/Blackout/issues/6))
 - The About panel is simpler: version, "Made by Mike Tomkins" and a link to the GitHub project, with no instructions.
 - Choosing Quit from the menu now asks "Quit Blackout?" first. Logout, restart and shutdown are not interrupted.
 - The version is now set only in `build.sh`; the app and CLI read it from Info.plist. ([#5](https://github.com/miketomkins/Blackout/issues/5))
