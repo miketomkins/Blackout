@@ -58,6 +58,7 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
         check(ShortcutConflicts.appWarning(for:ShortcutSpec.parse("cmd+1")!) != nil && ShortcutConflicts.appWarning(for:copy) == nil && ShortcutConflicts.appWarning(for:ShortcutSpec.parse("ctrl+alt+cmd+k")!) == nil, "other Command-only keys warn; standard and multi-modifier keys do not")
 
         check(MonitorPolicy.canForget(uuid:"x", online:[], disabled:[]) && !MonitorPolicy.canForget(uuid:"x", online:["x"], disabled:[]) && !MonitorPolicy.canForget(uuid:"x", online:[], disabled:["x"]), "only offline monitors Blackout did not disconnect can be forgotten")
+        check(MonitorPolicy.canIdentify(right, disabled:[]) && !MonitorPolicy.canIdentify(right, disabled:["right"]) && !MonitorPolicy.canIdentify(MonitorRecord(uuid:"x", alias:"X", x:0, isBuiltIn:false, active:false), disabled:[]), "only active monitors Blackout has not turned off can be identified")
 
         let clearSuite = "com.miketomkins.Blackout.tests.clear.\(UUID().uuidString)"
         let cleared = PreferencesStore(suiteName:clearSuite)

@@ -175,6 +175,7 @@ final class SettingsViewController:NSViewController {
     var fields:[String:(NSTextField,ShortcutRecorder)] = [:]
     var rows:[String:NSStackView] = [:]
     var systemWarnings:[String:String] = [:]
+    let displayIdentifier = DisplayIdentifier()
     let feedback = NSTextField(wrappingLabelWithString:"")
     let login = NSButton(checkboxWithTitle:"Launch Blackout at login",target:nil,action:nil)
     let loginStatus = NSTextField(wrappingLabelWithString:"")
@@ -197,8 +198,13 @@ final class SettingsViewController:NSViewController {
                     shortcut.onChange = { [weak self] _ in self?.evaluateConflicts() }
                     shortcut.onRecordingChange = { [weak d] recording in if recording { d?.hotkeys.suspend() } else { d?.hotkeys.resume() } }
                     let status = disabled.contains(monitor.uuid) ? "Off (Blackout)" : monitor.active ? "Connected" : online.contains(monitor.uuid) ? "Inactive" : "Not connected"
-                    let state = NSTextField(labelWithString:status); state.textColor = .secondaryLabelColor; state.widthAnchor.constraint(equalToConstant:110).isActive = true
+                    let state = NSTextField(labelWithString:status); state.textColor = .secondaryLabelColor; state.widthAnchor.constraint(equalToConstant:100).isActive = true
                     row.addArrangedSubview(name); row.addArrangedSubview(shortcut); row.addArrangedSubview(state)
+                    if MonitorPolicy.canIdentify(monitor,disabled:disabled) {
+                        let identify = NSButton(title:"Identify",target:self,action:#selector(identifyMonitor(_:))); identify.bezelStyle = .rounded; identify.identifier = NSUserInterfaceItemIdentifier(monitor.uuid)
+                        identify.setAccessibilityIdentifier("monitor.identify.\(monitor.uuid)"); identify.setAccessibilityLabel("Identify \(monitor.alias)"); identify.toolTip = "Outline this monitor in red for a moment."
+                        row.addArrangedSubview(identify)
+                    }
                     if MonitorPolicy.canForget(uuid:monitor.uuid,online:online,disabled:disabled) {
                         let forget = NSButton(title:"Forget",target:self,action:#selector(forgetMonitor(_:))); forget.bezelStyle = .rounded; forget.identifier = NSUserInterfaceItemIdentifier(monitor.uuid)
                         forget.setAccessibilityIdentifier("monitor.forget.\(monitor.uuid)"); forget.setAccessibilityLabel("Forget \(monitor.alias)"); forget.toolTip = "Remove this monitor's name and shortcut. It comes back with defaults if connected again."
@@ -256,6 +262,11 @@ final class SettingsViewController:NSViewController {
             else { feedback.textColor = .systemOrange; feedback.stringValue = "Saved, but these may clash with other shortcuts:\n" + systemWarnings.values.sorted().joined(separator:"\n") }
         } catch { fail(error.localizedDescription) }
     }
+    @objc func identifyMonitor(_ sender:NSButton) {
+        guard let uuid = sender.identifier?.rawValue else { return }
+        let name = fields[uuid]?.0.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).nilIfEmpty ?? "Monitor"
+        if !displayIdentifier.identify(uuid:uuid,name:name) { fail("\(name) isn't on the desktop right now, so it can't be outlined.") }
+    }
     @objc func forgetMonitor(_ sender:NSButton) {
         guard let d = delegate, let uuid = sender.identifier?.rawValue, let window = view.window else { return }
         let name = fields[uuid]?.0.stringValue ?? "this monitor"
@@ -293,7 +304,7 @@ final class SettingsViewController:NSViewController {
         } catch { fail("Login setting: \(error.localizedDescription)"); refreshLogin() }
     }
     override func viewWillAppear() { super.viewWillAppear(); refreshLogin() }
-    override func viewWillDisappear() { super.viewWillDisappear(); fields.values.forEach { $0.1.stopRecording() } }
+    override func viewWillDisappear() { super.viewWillDisappear(); fields.values.forEach { $0.1.stopRecording() }; displayIdentifier.dismissAll() }
 }
 
 private extension String { var nilIfEmpty:String? { isEmpty ? nil : self } }
