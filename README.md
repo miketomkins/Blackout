@@ -65,6 +65,7 @@ Tests cover policy, saved settings, simulated hardware failures/reconnects and t
 /Applications/Blackout.app/Contents/MacOS/Blackout --diagnostics
 /Applications/Blackout.app/Contents/MacOS/Blackout --toggle UUID
 /Applications/Blackout.app/Contents/MacOS/Blackout --connect UUID
+/Applications/Blackout.app/Contents/MacOS/Blackout --disconnect UUID
 /Applications/Blackout.app/Contents/MacOS/Blackout --connect-all
 /Applications/Blackout.app/Contents/MacOS/Blackout --show-settings
 ```
