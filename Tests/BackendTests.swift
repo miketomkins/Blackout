@@ -5,15 +5,20 @@ final class SimulatedHardware:DisplayHardware {
     var calls:[(UInt32,Bool)] = []
     var failApply = false
     var suppressApply = false
+    var failSnapshotsAfterApply = 0
+    private var pendingSnapshotFailures = 0
     let initial:[MonitorRecord]
     init() {
         initial = [MonitorRecord(uuid:"left",alias:"Left",x:-3840,isBuiltIn:false,displayID:1),MonitorRecord(uuid:"right",alias:"Right",x:0,isBuiltIn:false,displayID:2)]
         displays = initial
     }
-    func snapshot() throws -> [MonitorRecord] { displays }
+    func snapshot() throws -> [MonitorRecord] {
+        if pendingSnapshotFailures > 0 { pendingSnapshotFailures -= 1; throw BlackoutError.unavailable("simulated mid-reconfiguration read") }
+        return displays
+    }
     func identity(for id:UInt32) -> String? { displays.first { $0.displayID == id }?.uuid }
     func apply(id:UInt32,enabled:Bool) throws {
-        calls.append((id,enabled))
+        calls.append((id,enabled)); pendingSnapshotFailures = failSnapshotsAfterApply
         if failApply { throw BlackoutError.failed("simulated external OS failure") }
         if suppressApply { return }
         if enabled { if !displays.contains(where: { $0.displayID == id }), let original = initial.first(where: { $0.displayID == id }) { displays.append(original) } }
@@ -61,6 +66,12 @@ func rejects(_ operation:() throws -> Void,_ message:String) { do { try operatio
         check(!store.disabledUUIDs.contains("right"),"failed disable leaves no false owned-off flag when OS reports active")
         hw.failApply = false; hw.suppressApply = true
         rejects({ try backend.setEnabled(uuid:"right",enabled:false,store:store) },"successful native return without state change is not accepted")
+        hw.suppressApply = false; hw.displays = hw.initial; hw.failSnapshotsAfterApply = 2
+        let settling = DisplayBackend(hardware:hw,lockPath:lock,settleTimeout:1)
+        try settling.setEnabled(uuid:"right",enabled:false,store:store)
+        check(hw.displays.map(\.uuid) == ["left"] && store.disabledUUIDs.contains("right"),"transient read failures after a successful change are retried, not reported")
+        hw.failSnapshotsAfterApply = 0
+        try settling.setEnabled(uuid:"right",enabled:true,store:store)
         check(ShortcutSpec.keyCodes["l"] == 37 && ShortcutSpec.keyCodes["r"] == 15,"virtual keycodes are not ASCII character codes")
         check(!ShortcutSpec.validate([.reconnectAll,.reconnectAll]),"Reconnect All key cannot be duplicated")
         let native = try NativeDisplayHardware().snapshot()

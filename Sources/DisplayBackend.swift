@@ -31,8 +31,10 @@ public final class NativeDisplayHardware:DisplayHardware {
         var ids = [CGDirectDisplayID](repeating:0,count:64); var count:UInt32 = 0
         let error = CGGetOnlineDisplayList(64,&ids,&count)
         guard error == .success else { throw BlackoutError.failed("Cannot read display state (\(error.rawValue)).") }
-        return try ids.prefix(Int(count)).map { id in
-            guard let uuid = identity(for:id) else { throw BlackoutError.unavailable("A connected monitor has no stable identity. Try again after it wakes.") }
+        // A display can briefly report no UUID around wake or reconfiguration. Skip it rather than fail the
+        // whole list; undercounting active displays only makes the last-display guard more conservative.
+        return ids.prefix(Int(count)).compactMap { id in
+            guard let uuid = identity(for:id) else { return nil }
             let b = CGDisplayBounds(id)
             return MonitorRecord(uuid:uuid,alias:"Display",x:Int(b.origin.x),isBuiltIn:CGDisplayIsBuiltin(id) != 0,displayID:id,active:CGDisplayIsActive(id) != 0,y:Int(b.origin.y))
         }
@@ -96,12 +98,13 @@ public final class DisplayBackend {
                 if !enabled, (try? hardware.snapshot().contains(where: { $0.uuid == uuid && $0.active })) == true { store.setDisabled(uuid:uuid,disabled:false) }
                 throw error
             }
+            // The change is already applied: a snapshot failing mid-reconfiguration means "not confirmed yet", not an error.
             let end = Date().addingTimeInterval(settleTimeout)
-            var state = try hardware.snapshot()
-            while state.contains(where: { $0.uuid == uuid && $0.active }) != enabled, Date() < end {
-                Thread.sleep(forTimeInterval:0.08); state = try hardware.snapshot()
+            var latest = try? hardware.snapshot()
+            while latest.map({ $0.contains(where: { $0.uuid == uuid && $0.active }) != enabled }) ?? true, Date() < end {
+                Thread.sleep(forTimeInterval:0.08); latest = (try? hardware.snapshot()) ?? latest
             }
-            guard state.contains(where: { $0.uuid == uuid && $0.active }) == enabled else { throw BlackoutError.failed("macOS did not confirm the change. Use Reconnect All or reconnect the cable if necessary.") }
+            guard let state = latest, state.contains(where: { $0.uuid == uuid && $0.active }) == enabled else { throw BlackoutError.failed("macOS did not confirm the change. Use Reconnect All or reconnect the cable if necessary.") }
             guard state.contains(where: { $0.active }) else { throw BlackoutError.failed("No active display was reported. Reconnect the monitor normally.") }
             store.setDisabled(uuid:uuid,disabled:!enabled)
             store.remember(state)
