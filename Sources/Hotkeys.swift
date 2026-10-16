@@ -7,6 +7,8 @@ final class HotkeyManager {
     private var installed:[(UInt32,ShortcutSpec)] = []
     private var reservedRef:EventHotKeyRef?
     private var reserved:ShortcutSpec?
+    private var reservedID:UInt32 = 0
+    private var suspended = false
     private(set) var reservedError:String?
     private var handlerStatus:OSStatus = noErr
     var onPress:((UInt32)->Void)?
@@ -26,7 +28,34 @@ final class HotkeyManager {
     func reserve(id:UInt32,spec:ShortcutSpec) {
         guard handlerStatus == noErr else { reservedError = "Global shortcut handler failed (\(handlerStatus))."; return }
         let (ref,error) = add(id:id,spec:spec)
-        reservedRef = ref; reserved = ref == nil ? nil : spec; reservedError = error
+        reservedRef = ref; reserved = ref == nil ? nil : spec; reservedID = id; reservedError = error
+    }
+    // While a shortcut is being recorded our own hotkeys must not fire (or swallow the key press).
+    func suspend() {
+        guard !suspended else { return }; suspended = true
+        unregisterKeys(); if let reservedRef { UnregisterEventHotKey(reservedRef) }; reservedRef = nil
+    }
+    func resume() {
+        guard suspended else { return }; suspended = false
+        _ = install(installed); if let reserved { reservedRef = add(id:reservedID,spec:reserved).0 }
+    }
+    /// Why a shortcut may never reach Blackout because an enabled macOS shortcut uses it.
+    /// Other apps' hotkeys cannot be detected: macOS lets several apps register the same combination.
+    func systemConflict(for spec:ShortcutSpec) -> String? {
+        Self.systemShortcuts().contains(spec) ? "\(spec.display) is a macOS keyboard shortcut (System Settings → Keyboard → Keyboard Shortcuts)." : nil
+    }
+    private static func systemShortcuts() -> Set<ShortcutSpec> {
+        var array:Unmanaged<CFArray>?
+        guard CopySymbolicHotKeys(&array) == noErr, let entries = array?.takeRetainedValue() as? [[String:Any]] else { return [] }
+        var result:Set<ShortcutSpec> = []
+        for entry in entries where (entry[kHISymbolicHotKeyEnabled as String] as? Bool) == true {
+            guard let code = entry[kHISymbolicHotKeyCode as String] as? Int, let carbon = entry[kHISymbolicHotKeyModifiers as String] as? Int else { continue }
+            var mods:ShortcutSpec.Modifiers = []
+            if carbon & controlKey != 0 { mods.insert(.control) }; if carbon & optionKey != 0 { mods.insert(.option) }
+            if carbon & cmdKey != 0 { mods.insert(.command) }; if carbon & shiftKey != 0 { mods.insert(.shift) }
+            if let spec = ShortcutSpec.recorded(keyCode:UInt32(code),modifiers:mods) { result.insert(spec) }
+        }
+        return result
     }
     // Transactional replace: a failed customization retains previous bindings.
     func register(_ specs:[(UInt32,ShortcutSpec)]) -> [String] {
@@ -37,6 +66,7 @@ final class HotkeyManager {
         let errors = install(specs)
         if errors.isEmpty { installed = specs }
         else { unregisterKeys(); _ = install(previous); installed = previous }
+        if suspended { unregisterKeys() } // Bindings are recorded; resume() installs them.
         return errors
     }
     private func install(_ specs:[(UInt32,ShortcutSpec)]) -> [String] {

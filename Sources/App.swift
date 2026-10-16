@@ -53,12 +53,12 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
         }
         refreshWork = work; DispatchQueue.main.asyncAfter(deadline:.now()+0.3,execute:work)
     }
-    @discardableResult func configureHotkeys(monitors:[MonitorRecord],overrides:[String:ShortcutSpec] = [:]) -> [String] {
+    @discardableResult func configureHotkeys(monitors:[MonitorRecord],overrides:[String:ShortcutSpec?] = [:]) -> [String] {
         var specs:[(UInt32,ShortcutSpec)] = []
         var map:[UInt32:String] = [:]
         var seen:Set<ShortcutSpec> = [.reconnectAll], skipped:[String] = []
         for (i,m) in monitors.filter({ !$0.isBuiltIn }).sorted(by: { $0.uuid < $1.uuid }).enumerated() {
-            guard let spec = overrides[m.uuid] ?? store.shortcut(for:m.uuid) else { continue }
+            guard let spec = overrides[m.uuid] ?? store.shortcut(for:m.uuid) else { continue } // A cleared override is .some(nil).
             // Skip a saved duplicate rather than letting it block every other shortcut.
             guard seen.insert(spec).inserted else { skipped.append("\(m.alias): \(spec.display) is already in use. Choose another shortcut."); continue }
             let id = UInt32(i+1); specs.append((id,spec)); map[id] = m.uuid
@@ -154,7 +154,8 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
 
 final class SettingsViewController:NSViewController {
     weak var delegate:AppDelegate?
-    var fields:[String:(NSTextField,NSTextField)] = [:]
+    var fields:[String:(NSTextField,ShortcutRecorder)] = [:]
+    var systemWarnings:[String:String] = [:]
     let feedback = NSTextField(wrappingLabelWithString:"")
     let login = NSButton(checkboxWithTitle:"Launch Blackout at login",target:nil,action:nil)
     let loginStatus = NSTextField(wrappingLabelWithString:"")
@@ -172,36 +173,60 @@ final class SettingsViewController:NSViewController {
                 for monitor in try d.backend.enumerate(store:d.store) where !monitor.isBuiltIn {
                     let row = NSStackView(); row.orientation = .horizontal; row.spacing = 12
                     let name = NSTextField(string:monitor.alias); name.setAccessibilityIdentifier("monitor.name.\(monitor.uuid)"); name.setAccessibilityLabel("\(monitor.alias) monitor name"); name.widthAnchor.constraint(equalToConstant:180).isActive = true
-                    let shortcut = NSTextField(string:d.store.shortcut(for:monitor.uuid)?.canonical ?? "ctrl+alt+r"); shortcut.setAccessibilityIdentifier("monitor.shortcut.\(monitor.uuid)"); shortcut.setAccessibilityLabel("\(monitor.alias) shortcut"); shortcut.widthAnchor.constraint(equalToConstant:190).isActive = true
-                    shortcut.toolTip = "Use ctrl, alt, cmd, shift and one letter or digit, e.g. ctrl+alt+r."
+                    let shortcut = ShortcutRecorder(spec:d.store.shortcut(for:monitor.uuid)); shortcut.setAccessibilityIdentifier("monitor.shortcut.\(monitor.uuid)"); shortcut.setAccessibilityLabel("\(monitor.alias) shortcut"); shortcut.widthAnchor.constraint(equalToConstant:190).isActive = true
+                    shortcut.onChange = { [weak self] _ in self?.evaluateConflicts() }
+                    shortcut.onRecordingChange = { [weak d] recording in if recording { d?.hotkeys.suspend() } else { d?.hotkeys.resume() } }
                     let state = NSTextField(labelWithString:monitor.active ? "Connected" : "Disconnected"); state.textColor = .secondaryLabelColor
                     row.addArrangedSubview(name); row.addArrangedSubview(shortcut); row.addArrangedSubview(state); stack.addArrangedSubview(row); fields[monitor.uuid] = (name,shortcut)
                 }
             }
         } catch { feedback.stringValue = error.localizedDescription }
-        let hint = NSTextField(wrappingLabelWithString:"Shortcuts: ctrl+alt+l / ctrl+alt+r by default. Use a letter or digit with ctrl, alt, or cmd; shift is optional. Reconnect All always uses ⌃⌥0. Keys refer to US physical key positions."); hint.font = .systemFont(ofSize:11); hint.textColor = .secondaryLabelColor; stack.addArrangedSubview(hint)
+        let hint = NSTextField(wrappingLabelWithString:"Click a shortcut, then press the keys: a letter or digit with ⌃, ⌥ or ⌘ (⇧ optional). Esc cancels; Delete clears. Reconnect All always uses ⌃⌥0. Keys refer to US physical key positions."); hint.font = .systemFont(ofSize:11); hint.textColor = .secondaryLabelColor; stack.addArrangedSubview(hint)
         let save = NSButton(title:"Save Changes",target:self,action:#selector(saveChanges)); save.bezelStyle = .rounded; save.setAccessibilityIdentifier("blackout.save"); stack.addArrangedSubview(save)
         feedback.font = .systemFont(ofSize:12); feedback.setAccessibilityIdentifier("blackout.feedback"); feedback.stringValue = delegate?.shortcutError ?? ""; stack.addArrangedSubview(feedback)
         let line = NSBox(); line.boxType = .separator; line.widthAnchor.constraint(equalToConstant:590).isActive = true; stack.addArrangedSubview(line)
         login.target = self; login.action = #selector(loginChanged); login.setAccessibilityIdentifier("blackout.launchAtLogin"); stack.addArrangedSubview(login)
         loginStatus.font = .systemFont(ofSize:11); loginStatus.textColor = .secondaryLabelColor; loginStatus.setAccessibilityIdentifier("blackout.loginStatus"); stack.addArrangedSubview(loginStatus); refreshLogin()
         view.frame.size.height = CGFloat(325 + fields.count * 38)
+        evaluateConflicts(showSummary:false)
+    }
+    // Flags duplicates, the reserved key and standard app shortcuts like ⌘C (blocking),
+    // plus enabled macOS shortcuts and other Command-only combinations (warning only).
+    func evaluateConflicts(showSummary:Bool = true) {
+        guard let d = delegate else { return }
+        let rows = fields.map { (id:$0.key,name:$0.value.0.stringValue,spec:$0.value.1.spec) }
+        let duplicates = ShortcutConflicts.find(rows)
+        systemWarnings = [:]
+        for row in rows {
+            let recorder = fields[row.id]!.1
+            if let message = duplicates[row.id] { recorder.setConflict(message,severity:.error); continue }
+            let system = row.spec.flatMap { d.hotkeys.systemConflict(for:$0) ?? ShortcutConflicts.appWarning(for:$0) }
+            if let system { systemWarnings[row.id] = system }
+            recorder.setConflict(system,severity:.warning)
+        }
+        guard showSummary else { return }
+        let messages = rows.sorted { $0.name < $1.name }.compactMap { row in (duplicates[row.id] ?? systemWarnings[row.id]).map { "\(row.name): \($0)" } }
+        if messages.isEmpty { feedback.textColor = .secondaryLabelColor; feedback.stringValue = "No conflicts. Save Changes to apply." }
+        else { feedback.textColor = duplicates.isEmpty ? .systemOrange : .systemRed; feedback.stringValue = messages.joined(separator:"\n") }
     }
     @objc func saveChanges() {
         guard let d = delegate else { return }
-        var specs:[String:ShortcutSpec] = [:]
+        var specs:[String:ShortcutSpec?] = [:]
         for (uuid,pair) in fields {
             guard !pair.0.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { fail("Give every monitor a name."); return }
-            guard let spec = ShortcutSpec.parse(pair.1.stringValue) else { fail("Use a supported shortcut, such as ctrl+alt+r."); return }
-            specs[uuid] = spec
+            specs[uuid] = pair.1.spec
         }
-        guard ShortcutSpec.validate(Array(specs.values) + [.reconnectAll]) else { fail("Each shortcut must be unique; ctrl+alt+0 is reserved for Reconnect All."); return }
+        let conflicts = ShortcutConflicts.find(fields.map { (id:$0.key,name:$0.value.0.stringValue,spec:$0.value.1.spec) })
+        guard conflicts.isEmpty else { evaluateConflicts(); return }
         do {
             let monitors = try d.backend.enumerate(store:d.store)
             let errors = d.configureHotkeys(monitors:monitors,overrides:specs)
             guard errors.isEmpty else { fail(errors.joined(separator:"\n")); return }
-            for (uuid,pair) in fields { d.store.setAlias(pair.0.stringValue,for:uuid); d.store.setShortcut(specs[uuid],for:uuid) }
-            d.updateShortcutError([]); feedback.textColor = .systemGreen; feedback.stringValue = "Saved. Shortcuts are active."; d.buildMenu()
+            for (uuid,pair) in fields { d.store.setAlias(pair.0.stringValue,for:uuid); d.store.setShortcut(pair.1.spec,for:uuid) }
+            d.updateShortcutError([]); d.buildMenu()
+            evaluateConflicts(showSummary:false)
+            if systemWarnings.isEmpty { feedback.textColor = .systemGreen; feedback.stringValue = "Saved. Shortcuts are active." }
+            else { feedback.textColor = .systemOrange; feedback.stringValue = "Saved, but these may clash with other shortcuts:\n" + systemWarnings.values.sorted().joined(separator:"\n") }
         } catch { fail(error.localizedDescription) }
     }
     func fail(_ message:String) { feedback.textColor = .systemRed; feedback.stringValue = message }
@@ -223,6 +248,7 @@ final class SettingsViewController:NSViewController {
         } catch { fail("Login setting: \(error.localizedDescription)"); refreshLogin() }
     }
     override func viewWillAppear() { super.viewWillAppear(); refreshLogin() }
+    override func viewWillDisappear() { super.viewWillDisappear(); fields.values.forEach { $0.1.stopRecording() } }
 }
 
 private extension String { var nilIfEmpty:String? { isEmpty ? nil : self } }

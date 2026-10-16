@@ -11,7 +11,7 @@ A small macOS menu-bar app for disconnecting and reconnecting external monitors,
 
 - Disconnect/reconnect an individual monitor from the menu bar.
 - Rename monitors; names follow their stable display identities.
-- Customize global shortcuts in Settings.
+- Record global shortcuts in Settings, with conflict warnings.
 - Reconnect All, including a reserved global shortcut.
 - Protect the last active display and built-in displays.
 - Optional Launch at Login through macOS ServiceManagement.
@@ -26,7 +26,9 @@ A small macOS menu-bar app for disconnecting and reconnecting external monitors,
 | Toggle Right | Control–Option–R |
 | Reconnect All | Control–Option–0 |
 
-Open **Settings…** to change names and shortcut strings, then **Save Changes**. For example, `ctrl+alt+r` or `ctrl+alt+cmd+k`. Use a letter or digit with Control, Option or Command; Shift is optional. Physical key positions use the US mapping. Duplicate/unavailable shortcuts report errors. Control–Option–0 is reserved.
+Open **Settings…** to rename monitors and change shortcuts, then **Save Changes**. To set a shortcut, click it and press the keys you want: a letter or digit with Control, Option or Command (Shift is optional). Esc cancels recording and Delete clears the shortcut. Physical key positions use the US mapping. Control–Option–0 is reserved.
+
+Conflicts are flagged as you record. These are shown in red and block saving: a shortcut used by another monitor, the reserved Control–Option–0, or a standard app shortcut such as ⌘C (Copy), ⌘V or ⌘Z, because a global shortcut would replace it in every app. These are shown in orange and can still be saved: an enabled macOS keyboard shortcut (macOS may catch it first), or another Command-only combination such as ⌘1. A specific app's own custom shortcuts can't be detected.
 
 “Off” removes the display from macOS's active desktop, so windows can move to the remaining display. It does **not** cut electrical power to the panel.
 
