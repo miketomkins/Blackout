@@ -134,13 +134,22 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
     }
     @objc func showAbout() {
         NSApp.activate(ignoringOtherApps:true)
-        // Version and build come from Info.plist; the shortcut line reflects the saved settings.
-        let monitors = ((try? backend.enumerate(store:store,remember:false)) ?? []).filter { !$0.isBuiltIn }
-        let shortcuts = monitors.compactMap { m in store.shortcut(for:m.uuid).map { "\(m.alias) \($0.display)" } }
-        let credits = ["Disconnect a monitor. Keep your focus.",(shortcuts.isEmpty ? "No monitor shortcuts set" : shortcuts.joined(separator:" · ")) + " · Reconnect all \(ShortcutSpec.reconnectAll.display)","Custom shortcuts and Launch at Login are in Settings.","Uses a private macOS display API; local build, not notarized."]
-        NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"Blackout",.credits:NSAttributedString(string:credits.joined(separator:"\n"))])
+        // Version and build come from Info.plist; credits are just the author and the project link.
+        let centered = NSMutableParagraphStyle(); centered.alignment = .center
+        let style:[NSAttributedString.Key:Any] = [.font:NSFont.systemFont(ofSize:NSFont.smallSystemFontSize),.foregroundColor:NSColor.labelColor,.paragraphStyle:centered]
+        let credits = NSMutableAttributedString(string:"Made by Mike Tomkins\n",attributes:style)
+        credits.append(NSAttributedString(string:"github.com/miketomkins/Blackout",attributes:style.merging([.link:URL(string:"https://github.com/miketomkins/Blackout")!]) { $1 }))
+        NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"Blackout",.credits:credits])
     }
-    @objc func quit() { NSApp.terminate(nil) }
+    // Asks only for the menu's Quit; logout, restart and shutdown go straight to applicationShouldTerminate.
+    @objc func quit() {
+        NSApp.activate(ignoringOtherApps:true)
+        let alert = NSAlert(); alert.messageText = "Quit Blackout?"
+        alert.informativeText = (store.disabledUUIDs.isEmpty ? "" : "Monitors Blackout turned off will be reconnected. ") + "Your monitor shortcuts will stop working until you open Blackout again."
+        alert.addButton(withTitle:"Quit"); alert.addButton(withTitle:"Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        NSApp.terminate(nil)
+    }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         var errors:[String] = []
         operations.sync {} // Let an in-flight change finish before restoring displays.
