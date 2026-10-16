@@ -62,12 +62,33 @@ public struct ShortcutSpec: Codable, Equatable, Hashable {
 }
 
 public enum ShortcutConflicts {
-    /// Maps each conflicting id to a message: duplicates within the set, or the reserved Reconnect All key.
+    /// Standard menu shortcuts found in nearly every Mac app. A global hotkey fires before any app's menu,
+    /// so claiming one of these would break it everywhere. Symbolic macOS hotkeys are checked separately.
+    public static let standardAppShortcuts:[ShortcutSpec:String] = {
+        let cmd:[String:String] = ["a":"Select All","b":"Bold","c":"Copy","f":"Find","g":"Find Next","h":"Hide","i":"Italic","m":"Minimize","n":"New","o":"Open","p":"Print","q":"Quit","s":"Save","t":"New Tab","u":"Underline","v":"Paste","w":"Close Window","x":"Cut","z":"Undo"]
+        let cmdShift:[String:String] = ["z":"Redo","s":"Save As","g":"Find Previous","n":"New Folder","t":"Reopen Closed Tab"]
+        let cmdOption:[String:String] = ["h":"Hide Others","m":"Minimize All","w":"Close All","v":"Move (Finder)"]
+        let ctrlCmd:[String:String] = ["f":"Full Screen","q":"Lock Screen","d":"Look Up"]
+        var result:[ShortcutSpec:String] = [:]
+        let groups:[(ShortcutSpec.Modifiers,[String:String])] = [([.command],cmd),([.command,.shift],cmdShift),([.command,.option],cmdOption),([.control,.command],ctrlCmd)]
+        for (mods,table) in groups {
+            for (key,name) in table { result[ShortcutSpec(modifiers:mods,key:key)] = name }
+        }
+        return result
+    }()
+    /// Non-blocking caution for Command-only combinations apps commonly use (for example ⌘1 for tabs).
+    public static func appWarning(for spec:ShortcutSpec) -> String? {
+        guard standardAppShortcuts[spec] == nil, spec.modifiers == .command || spec.modifiers == [.command,.shift] else { return nil }
+        return "\(spec.display) is often used by apps; Blackout would take it over in every app."
+    }
+    /// Maps each conflicting id to a message: duplicates within the set, the reserved Reconnect All key,
+    /// or a standard app shortcut such as ⌘C.
     public static func find(_ assignments:[(id:String,name:String,spec:ShortcutSpec?)]) -> [String:String] {
         var result:[String:String] = [:]
         for a in assignments {
             guard let spec = a.spec else { continue }
             if spec == .reconnectAll { result[a.id] = "\(spec.display) is reserved for Reconnect All."; continue }
+            if let name = standardAppShortcuts[spec] { result[a.id] = "\(spec.display) is \(name) in most apps; a global shortcut would replace it everywhere."; continue }
             let others = assignments.filter { $0.id != a.id && $0.spec == spec }.map(\.name)
             if !others.isEmpty { result[a.id] = "\(spec.display) is also used by \(others.joined(separator:", "))." }
         }

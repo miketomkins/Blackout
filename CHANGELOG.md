@@ -6,7 +6,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 ### Added
 - Shortcut recorder in Settings: click a shortcut and press the keys instead of typing `ctrl+alt+r`. Esc cancels recording and Delete clears the shortcut. Blackout's own hotkeys are paused while recording, so pressing a current shortcut records it instead of toggling a monitor. ([#6](https://github.com/miketomkins/Blackout/issues/6))
-- Conflict flagging while recording: duplicates and the reserved ⌃⌥0 are shown in red and block saving; enabled macOS keyboard shortcuts are shown in orange as a warning. ([#6](https://github.com/miketomkins/Blackout/issues/6))
+- Conflict flagging while recording: duplicates, the reserved ⌃⌥0 and standard app shortcuts such as ⌘C, ⌘V and ⌘Z are shown in red and block saving; enabled macOS keyboard shortcuts and other Command-only combinations are shown in orange as a warning. ([#6](https://github.com/miketomkins/Blackout/issues/6))
 
 ### Changed
 - A monitor's shortcut can now be cleared. A cleared shortcut stays cleared instead of being re-seeded, and Settings no longer fills an empty shortcut with `ctrl+alt+r`. ([#2](https://github.com/miketomkins/Blackout/issues/2))

@@ -190,7 +190,8 @@ final class SettingsViewController:NSViewController {
         view.frame.size.height = CGFloat(325 + fields.count * 38)
         evaluateConflicts(showSummary:false)
     }
-    // Flags duplicates and the reserved key (blocking) plus enabled macOS shortcuts (warning only).
+    // Flags duplicates, the reserved key and standard app shortcuts like ⌘C (blocking),
+    // plus enabled macOS shortcuts and other Command-only combinations (warning only).
     func evaluateConflicts(showSummary:Bool = true) {
         guard let d = delegate else { return }
         let rows = fields.map { (id:$0.key,name:$0.value.0.stringValue,spec:$0.value.1.spec) }
@@ -199,7 +200,7 @@ final class SettingsViewController:NSViewController {
         for row in rows {
             let recorder = fields[row.id]!.1
             if let message = duplicates[row.id] { recorder.setConflict(message,severity:.error); continue }
-            let system = row.spec.flatMap { d.hotkeys.systemConflict(for:$0) }
+            let system = row.spec.flatMap { d.hotkeys.systemConflict(for:$0) ?? ShortcutConflicts.appWarning(for:$0) }
             if let system { systemWarnings[row.id] = system }
             recorder.setConflict(system,severity:.warning)
         }
@@ -225,7 +226,7 @@ final class SettingsViewController:NSViewController {
             d.updateShortcutError([]); d.buildMenu()
             evaluateConflicts(showSummary:false)
             if systemWarnings.isEmpty { feedback.textColor = .systemGreen; feedback.stringValue = "Saved. Shortcuts are active." }
-            else { feedback.textColor = .systemOrange; feedback.stringValue = "Saved, but macOS may catch these first:\n" + systemWarnings.values.sorted().joined(separator:"\n") }
+            else { feedback.textColor = .systemOrange; feedback.stringValue = "Saved, but these may clash with other shortcuts:\n" + systemWarnings.values.sorted().joined(separator:"\n") }
         } catch { fail(error.localizedDescription) }
     }
     func fail(_ message:String) { feedback.textColor = .systemRed; feedback.stringValue = message }
