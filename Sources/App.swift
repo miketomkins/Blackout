@@ -155,6 +155,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
 final class SettingsViewController:NSViewController {
     weak var delegate:AppDelegate?
     var fields:[String:(NSTextField,ShortcutRecorder)] = [:]
+    var rows:[String:NSStackView] = [:]
     var systemWarnings:[String:String] = [:]
     let feedback = NSTextField(wrappingLabelWithString:"")
     let login = NSButton(checkboxWithTitle:"Launch Blackout at login",target:nil,action:nil)
@@ -167,17 +168,25 @@ final class SettingsViewController:NSViewController {
         view.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo:view.leadingAnchor,constant:26),stack.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-26),stack.topAnchor.constraint(equalTo:view.topAnchor,constant:24),stack.bottomAnchor.constraint(lessThanOrEqualTo:view.bottomAnchor,constant:-20)])
         let title = NSTextField(labelWithString:"Your monitors. One shortcut away."); title.font = .boldSystemFont(ofSize:20); stack.addArrangedSubview(title)
-        let help = NSTextField(wrappingLabelWithString:"Off disconnects the display from macOS; it does not cut panel power. The last active display stays on. Names and shortcuts are remembered."); help.textColor = .secondaryLabelColor; stack.addArrangedSubview(help)
+        let help = NSTextField(wrappingLabelWithString:"Off disconnects the display from macOS; it does not cut panel power. The last active display stays on. Names and shortcuts are remembered; use Forget to remove a monitor that's no longer connected."); help.textColor = .secondaryLabelColor; stack.addArrangedSubview(help)
         do {
             if let d = delegate {
+                let online = (try? d.backend.onlineUUIDs()) ?? [], disabled = d.store.disabledUUIDs
                 for monitor in try d.backend.enumerate(store:d.store) where !monitor.isBuiltIn {
                     let row = NSStackView(); row.orientation = .horizontal; row.spacing = 12
                     let name = NSTextField(string:monitor.alias); name.setAccessibilityIdentifier("monitor.name.\(monitor.uuid)"); name.setAccessibilityLabel("\(monitor.alias) monitor name"); name.widthAnchor.constraint(equalToConstant:180).isActive = true
                     let shortcut = ShortcutRecorder(spec:d.store.shortcut(for:monitor.uuid)); shortcut.setAccessibilityIdentifier("monitor.shortcut.\(monitor.uuid)"); shortcut.setAccessibilityLabel("\(monitor.alias) shortcut"); shortcut.widthAnchor.constraint(equalToConstant:190).isActive = true
                     shortcut.onChange = { [weak self] _ in self?.evaluateConflicts() }
                     shortcut.onRecordingChange = { [weak d] recording in if recording { d?.hotkeys.suspend() } else { d?.hotkeys.resume() } }
-                    let state = NSTextField(labelWithString:monitor.active ? "Connected" : "Disconnected"); state.textColor = .secondaryLabelColor
-                    row.addArrangedSubview(name); row.addArrangedSubview(shortcut); row.addArrangedSubview(state); stack.addArrangedSubview(row); fields[monitor.uuid] = (name,shortcut)
+                    let status = disabled.contains(monitor.uuid) ? "Off (Blackout)" : monitor.active ? "Connected" : online.contains(monitor.uuid) ? "Inactive" : "Not connected"
+                    let state = NSTextField(labelWithString:status); state.textColor = .secondaryLabelColor; state.widthAnchor.constraint(equalToConstant:110).isActive = true
+                    row.addArrangedSubview(name); row.addArrangedSubview(shortcut); row.addArrangedSubview(state)
+                    if MonitorPolicy.canForget(uuid:monitor.uuid,online:online,disabled:disabled) {
+                        let forget = NSButton(title:"Forget",target:self,action:#selector(forgetMonitor(_:))); forget.bezelStyle = .rounded; forget.identifier = NSUserInterfaceItemIdentifier(monitor.uuid)
+                        forget.setAccessibilityIdentifier("monitor.forget.\(monitor.uuid)"); forget.setAccessibilityLabel("Forget \(monitor.alias)"); forget.toolTip = "Remove this monitor's name and shortcut. It comes back with defaults if connected again."
+                        row.addArrangedSubview(forget)
+                    }
+                    stack.addArrangedSubview(row); fields[monitor.uuid] = (name,shortcut); rows[monitor.uuid] = row
                 }
             }
         } catch { feedback.stringValue = error.localizedDescription }
@@ -228,6 +237,24 @@ final class SettingsViewController:NSViewController {
             if systemWarnings.isEmpty { feedback.textColor = .systemGreen; feedback.stringValue = "Saved. Shortcuts are active." }
             else { feedback.textColor = .systemOrange; feedback.stringValue = "Saved, but these may clash with other shortcuts:\n" + systemWarnings.values.sorted().joined(separator:"\n") }
         } catch { fail(error.localizedDescription) }
+    }
+    @objc func forgetMonitor(_ sender:NSButton) {
+        guard let d = delegate, let uuid = sender.identifier?.rawValue, let window = view.window else { return }
+        let name = fields[uuid]?.0.stringValue ?? "this monitor"
+        let alert = NSAlert(); alert.messageText = "Forget \(name)?"
+        alert.informativeText = "Its name and shortcut will be removed. If it's connected again, Blackout adds it back with default settings."
+        alert.addButton(withTitle:"Forget"); alert.addButton(withTitle:"Cancel")
+        alert.beginSheetModal(for:window) { [weak self] response in
+            guard response == .alertFirstButtonReturn, let self else { return }
+            do {
+                try d.backend.forget(uuid:uuid,store:d.store)
+                self.fields[uuid] = nil; self.rows.removeValue(forKey:uuid)?.removeFromSuperview()
+                window.setContentSize(NSSize(width:window.contentLayoutRect.width,height:CGFloat(325 + self.fields.count * 38)))
+                if let monitors = try? d.backend.enumerate(store:d.store) { d.updateShortcutError(d.configureHotkeys(monitors:monitors)) }
+                d.buildMenu(); self.evaluateConflicts(showSummary:false)
+                self.feedback.textColor = .secondaryLabelColor; self.feedback.stringValue = "Forgot \(name)."
+            } catch { self.fail(error.localizedDescription) }
+        }
     }
     func fail(_ message:String) { feedback.textColor = .systemRed; feedback.stringValue = message }
     func refreshLogin() {

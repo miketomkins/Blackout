@@ -19,6 +19,11 @@ public enum MonitorPolicy {
         // Actual OS state wins over a stale saved ownership flag.
         return active.filter { $0.active }.count > 1
     }
+    /// Only a monitor that is not online and that Blackout did not disconnect may be forgotten:
+    /// an online one would be re-added at once, and a Blackout-disconnected one needs its saved address to come back.
+    public static func canForget(uuid:String,online:Set<String>,disabled:Set<String>) -> Bool {
+        !online.contains(uuid) && !disabled.contains(uuid)
+    }
 }
 
 public struct ShortcutSpec: Codable, Equatable, Hashable {
@@ -132,6 +137,14 @@ public final class PreferencesStore {
         var records = Dictionary(uniqueKeysWithValues:knownMonitors.map { ($0.uuid,$0) })
         for m in monitors { records[m.uuid] = m }
         if let data = try? JSONEncoder().encode(Array(records.values).sorted { $0.uuid < $1.uuid }) { defaults.set(data,forKey:"knownMonitors"); save() }
+    }
+    /// Removes a monitor's saved record, name and shortcut. Check MonitorPolicy.canForget first.
+    public func forget(uuid:String) {
+        let records = knownMonitors.filter { $0.uuid != uuid }
+        if let data = try? JSONEncoder().encode(records) { defaults.set(data,forKey:"knownMonitors") }
+        var aliases = allAliases(); aliases[uuid] = nil; defaults.set(aliases,forKey:"aliases")
+        var shortcuts = defaults.dictionary(forKey:"shortcuts") as? [String:String] ?? [:]; shortcuts[uuid] = nil; defaults.set(shortcuts,forKey:"shortcuts")
+        save()
     }
     public func seedDefaults(_ monitors:[MonitorRecord]) {
         let externals = monitors.filter { !$0.isBuiltIn }.sorted { $0.x == $1.x ? $0.uuid < $1.uuid : $0.x < $1.x }

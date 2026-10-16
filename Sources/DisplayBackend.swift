@@ -69,6 +69,16 @@ public final class DisplayBackend {
         all = all.map { m in var value = m; value.alias = store.alias(for:m.uuid,fallback:m.alias); return value }
         return all
     }
+    /// UUIDs macOS currently reports online, including asleep or inactive displays.
+    public func onlineUUIDs() throws -> Set<String> { Set(try hardware.snapshot().map(\.uuid)) }
+    public func forget(uuid:String,store:PreferencesStore) throws {
+        try withLock {
+            store.reload()
+            guard !store.disabledUUIDs.contains(uuid) else { throw BlackoutError.unsafe("Blackout disconnected this monitor. Reconnect it before forgetting it.") }
+            guard MonitorPolicy.canForget(uuid:uuid,online:try onlineUUIDs(),disabled:store.disabledUUIDs) else { throw BlackoutError.unsafe("This monitor is connected. Only monitors that aren't connected can be forgotten.") }
+            store.forget(uuid:uuid)
+        }
+    }
     public func setEnabled(uuid:String,enabled:Bool,store:PreferencesStore) throws { try change(uuid:uuid,desired:enabled,store:store) }
     public func toggle(uuid:String,store:PreferencesStore) throws { try change(uuid:uuid,desired:nil,store:store) }
     private func change(uuid:String,desired:Bool?,store:PreferencesStore) throws {
