@@ -38,6 +38,30 @@ public enum MonitorPolicy {
     }
 }
 
+/// A monitor in "Switch input" mode: its shortcut moves it between the Mac's input and the other computer's.
+public struct InputSwitchSetting: Equatable {
+    public var macInput: UInt8
+    public var otherInput: UInt8
+    public init(macInput: UInt8, otherInput: UInt8) {
+        self.macInput = macInput
+        self.otherInput = otherInput
+    }
+}
+
+public enum InputSwitchPolicy {
+    /// Where a toggle sends the monitor: away if it's showing the Mac, otherwise back to the Mac.
+    /// Without a reading, Blackout's own record of having sent it away decides.
+    public static func toggleTarget(current: UInt8?, setting: InputSwitchSetting, switched: Bool) -> UInt8 {
+        if let current { return current == setting.macInput ? setting.otherInput : setting.macInput }
+        return switched ? setting.macInput : setting.otherInput
+    }
+    /// USB-C if offered (the usual second-computer cable), else the first listed input that isn't the Mac's.
+    public static func defaultOtherInput(inputs: [UInt8], macInput: UInt8) -> UInt8? {
+        let candidates = inputs.filter { $0 != macInput }
+        return candidates.contains(0x1B) ? 0x1B : candidates.first
+    }
+}
+
 public struct ShortcutSpec: Codable, Equatable, Hashable {
     public struct Modifiers: OptionSet, Codable, Hashable {
         public let rawValue: Int
@@ -204,6 +228,41 @@ public final class PreferencesStore {
         }
     }
     /// Removes a monitor's saved record, name and shortcut. Check MonitorPolicy.canForget first.
+    /// nil means the monitor's shortcut disconnects it (the default).
+    public func inputSwitch(for uuid: String) -> InputSwitchSetting? {
+        guard let pair = (defaults.dictionary(forKey: "inputSwitch") as? [String: [Int]])?[uuid], pair.count == 2 else {
+            return nil
+        }
+        return InputSwitchSetting(
+            macInput: UInt8(truncatingIfNeeded: pair[0]), otherInput: UInt8(truncatingIfNeeded: pair[1]))
+    }
+    public func setInputSwitch(_ setting: InputSwitchSetting?, for uuid: String) {
+        var all = defaults.dictionary(forKey: "inputSwitch") as? [String: [Int]] ?? [:]
+        all[uuid] = setting.map { [Int($0.macInput), Int($0.otherInput)] }
+        defaults.set(all, forKey: "inputSwitch")
+        if setting == nil { setSwitched(uuid: uuid, switched: false) }
+        save()
+    }
+    /// Monitors Blackout has sent to the other computer; Reconnect All and Quit bring these back.
+    public var switchedUUIDs: Set<String> { Set(defaults.stringArray(forKey: "switchedUUIDs") ?? []) }
+    public func setSwitched(uuid: String, switched: Bool) {
+        var ids = switchedUUIDs
+        if switched { ids.insert(uuid) } else { ids.remove(uuid) }
+        defaults.set(Array(ids).sorted(), forKey: "switchedUUIDs")
+        save()
+    }
+    /// Input codes the monitor listed in its capabilities, cached so Settings opens instantly.
+    public func knownInputs(for uuid: String) -> [UInt8] {
+        ((defaults.dictionary(forKey: "knownInputs") as? [String: [Int]])?[uuid] ?? []).map {
+            UInt8(truncatingIfNeeded: $0)
+        }
+    }
+    public func setKnownInputs(_ inputs: [UInt8], for uuid: String) {
+        var all = defaults.dictionary(forKey: "knownInputs") as? [String: [Int]] ?? [:]
+        all[uuid] = inputs.isEmpty ? nil : inputs.map(Int.init)
+        defaults.set(all, forKey: "knownInputs")
+        save()
+    }
     public func forget(uuid: String) {
         let records = knownMonitors.filter { $0.uuid != uuid }
         if let data = try? JSONEncoder().encode(records) { defaults.set(data, forKey: "knownMonitors") }
@@ -213,6 +272,8 @@ public final class PreferencesStore {
         var shortcuts = defaults.dictionary(forKey: "shortcuts") as? [String: String] ?? [:]
         shortcuts[uuid] = nil
         defaults.set(shortcuts, forKey: "shortcuts")
+        setInputSwitch(nil, for: uuid)
+        setKnownInputs([], for: uuid)
         save()
     }
     public func seedDefaults(_ monitors: [MonitorRecord]) {

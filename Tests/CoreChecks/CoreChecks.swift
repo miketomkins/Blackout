@@ -110,6 +110,26 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
                     MonitorRecord(uuid: "x", alias: "X", x: 0, isBuiltIn: false, active: false), disabled: []),
             "only active monitors Blackout has not turned off can be identified")
 
+        let mode = InputSwitchSetting(macInput: 0x0F, otherInput: 0x1B)
+        check(
+            InputSwitchPolicy.toggleTarget(current: 0x0F, setting: mode, switched: false) == 0x1B,
+            "toggle from the Mac goes to the other computer")
+        check(
+            InputSwitchPolicy.toggleTarget(current: 0x1B, setting: mode, switched: false) == 0x0F,
+            "toggle from elsewhere comes back to the Mac")
+        check(
+            InputSwitchPolicy.toggleTarget(current: 0x11, setting: mode, switched: false) == 0x0F,
+            "an unexpected input also comes back to the Mac")
+        check(
+            InputSwitchPolicy.toggleTarget(current: nil, setting: mode, switched: true) == 0x0F
+                && InputSwitchPolicy.toggleTarget(current: nil, setting: mode, switched: false) == 0x1B,
+            "without a reading, the away record decides")
+        check(
+            InputSwitchPolicy.defaultOtherInput(inputs: [0x1B, 0x0F, 0x11], macInput: 0x0F) == 0x1B
+                && InputSwitchPolicy.defaultOtherInput(inputs: [0x0F, 0x11], macInput: 0x0F) == 0x11
+                && InputSwitchPolicy.defaultOtherInput(inputs: [0x0F], macInput: 0x0F) == nil,
+            "default other input prefers USB-C")
+
         let clearSuite = "com.miketomkins.Blackout.tests.clear.\(UUID().uuidString)"
         let cleared = PreferencesStore(suiteName: clearSuite)
         let pair = [
