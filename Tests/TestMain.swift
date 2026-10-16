@@ -42,6 +42,23 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
         let all = (three + [farLeft] + many).compactMap { seeded.shortcut(for:$0.uuid) }
         check(all.count == 9 && ShortcutSpec.validate(all + [.reconnectAll]), "more than nine monitors never produce duplicate shortcuts")
         UserDefaults(suiteName:seedSuite)?.removePersistentDomain(forName:seedSuite)
+
+        check(ShortcutSpec.recorded(keyCode:37, modifiers:[.control,.option]) == ShortcutSpec(modifiers:[.control,.option], key:"l"), "recorded key code maps to US physical key")
+        check(ShortcutSpec.recorded(keyCode:37, modifiers:[.shift]) == nil, "recorded shift-only press is rejected")
+        check(ShortcutSpec.recorded(keyCode:122, modifiers:[.control]) == nil, "recorded unsupported key (F1) is rejected")
+        let l = ShortcutSpec(modifiers:[.control,.option], key:"l")
+        let conflicts = ShortcutConflicts.find([(id:"a", name:"Left", spec:l), (id:"b", name:"Right", spec:l), (id:"c", name:"Other", spec:.reconnectAll), (id:"d", name:"None", spec:nil)])
+        check(conflicts["a"]?.contains("Right") == true && conflicts["b"]?.contains("Left") == true, "duplicate shortcut flags both monitors by name")
+        check(conflicts["c"]?.contains("Reconnect All") == true && conflicts["d"] == nil && conflicts.count == 3, "reserved key flagged; cleared shortcut is not a conflict")
+
+        let clearSuite = "com.miketomkins.Blackout.tests.clear.\(UUID().uuidString)"
+        let cleared = PreferencesStore(suiteName:clearSuite)
+        let pair = [MonitorRecord(uuid:"left", alias:"", x:0, isBuiltIn:false), MonitorRecord(uuid:"right", alias:"", x:100, isBuiltIn:false)]
+        cleared.seedDefaults(pair)
+        cleared.setShortcut(nil, for:"right")
+        cleared.seedDefaults(pair)
+        check(cleared.shortcut(for:"right") == nil && cleared.hasShortcutSetting(for:"right"), "a cleared shortcut is not re-seeded")
+        UserDefaults(suiteName:clearSuite)?.removePersistentDomain(forName:clearSuite)
         print("Blackout core tests: PASS (\(checks) assertions)")
     }
 }
