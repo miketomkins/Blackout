@@ -34,8 +34,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
             if id == 999 { self.reconnectAll() }
             else if let uuid = self.bindings[id] { self.toggleUUID(uuid) }
         }
-        do { let monitors = try backend.enumerate(store:store); shortcutError = configureHotkeys(monitors:monitors).joined(separator:"\n").nilIfEmpty }
-        catch { shortcutError = error.localizedDescription }
+        hotkeys.reserve(id:999,spec:.reconnectAll)
+        do { let monitors = try backend.enumerate(store:store); updateShortcutError(configureHotkeys(monitors:monitors)) }
+        catch { updateShortcutError([error.localizedDescription]) }
         buildMenu()
         CGDisplayRegisterReconfigurationCallback(displayChanged,Unmanaged.passUnretained(self).toOpaque())
     }
@@ -46,21 +47,26 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuDelegate {
             guard let self else { return }
             self.buildMenu()
             if let monitors = try? self.backend.enumerate(store:self.store), Set(monitors.filter { !$0.isBuiltIn }.map(\.uuid)) != Set(self.bindings.values) {
-                self.shortcutError = self.configureHotkeys(monitors:monitors).joined(separator:"\n").nilIfEmpty
+                self.updateShortcutError(self.configureHotkeys(monitors:monitors))
             }
         }
         refreshWork = work; DispatchQueue.main.asyncAfter(deadline:.now()+0.3,execute:work)
     }
     @discardableResult func configureHotkeys(monitors:[MonitorRecord],overrides:[String:ShortcutSpec] = [:]) -> [String] {
-        var specs:[(UInt32,ShortcutSpec)] = [(999,.reconnectAll)]
+        var specs:[(UInt32,ShortcutSpec)] = []
         var map:[UInt32:String] = [:]
+        var seen:Set<ShortcutSpec> = [.reconnectAll], skipped:[String] = []
         for (i,m) in monitors.filter({ !$0.isBuiltIn }).sorted(by: { $0.uuid < $1.uuid }).enumerated() {
-            if let spec = overrides[m.uuid] ?? store.shortcut(for:m.uuid) { let id = UInt32(i+1); specs.append((id,spec)); map[id] = m.uuid }
+            guard let spec = overrides[m.uuid] ?? store.shortcut(for:m.uuid) else { continue }
+            // Skip a saved duplicate rather than letting it block every other shortcut.
+            guard seen.insert(spec).inserted else { skipped.append("\(m.alias): \(spec.display) is already in use. Choose another shortcut."); continue }
+            let id = UInt32(i+1); specs.append((id,spec)); map[id] = m.uuid
         }
         let errors = hotkeys.register(specs)
         if errors.isEmpty { bindings = map }
-        return errors
+        return skipped + errors
     }
+    func updateShortcutError(_ errors:[String]) { shortcutError = ([hotkeys.reservedError].compactMap { $0 } + errors).joined(separator:"\n").nilIfEmpty }
     func buildMenu() {
         menu.removeAllItems()
         menu.addItem(NSMenuItem(title:"Blackout",action:nil,keyEquivalent:""))
@@ -183,7 +189,7 @@ final class SettingsViewController:NSViewController {
             let errors = d.configureHotkeys(monitors:monitors,overrides:specs)
             guard errors.isEmpty else { fail(errors.joined(separator:"\n")); return }
             for (uuid,pair) in fields { d.store.setAlias(pair.0.stringValue,for:uuid); d.store.setShortcut(specs[uuid],for:uuid) }
-            d.shortcutError = nil; feedback.textColor = .systemGreen; feedback.stringValue = "Saved. Shortcuts are active."; d.buildMenu()
+            d.updateShortcutError([]); feedback.textColor = .systemGreen; feedback.stringValue = "Saved. Shortcuts are active."; d.buildMenu()
         } catch { fail(error.localizedDescription) }
     }
     func fail(_ message:String) { feedback.textColor = .systemRed; feedback.stringValue = message }

@@ -27,6 +27,21 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
         store.setShortcut(ShortcutSpec(modifiers:[.control,.option],key:"r"),for:"right")
         check(PreferencesStore(suiteName:suite).shortcut(for:"right")?.key == "r", "shortcut survives new store")
         UserDefaults(suiteName:suite)?.removePersistentDomain(forName:suite)
+
+        let seedSuite = "com.miketomkins.Blackout.tests.seed.\(UUID().uuidString)"
+        let seeded = PreferencesStore(suiteName:seedSuite)
+        let three = (0..<3).map { MonitorRecord(uuid:"m\($0)", alias:"", x:$0 * 1000, isBuiltIn:false) }
+        seeded.seedDefaults(three)
+        check(three.compactMap { seeded.shortcut(for:$0.uuid)?.key } == ["1","2","3"], "three monitors seed digits by position")
+        let farLeft = MonitorRecord(uuid:"m3", alias:"", x:-5000, isBuiltIn:false)
+        seeded.seedDefaults(three + [farLeft])
+        let four = (three + [farLeft]).compactMap { seeded.shortcut(for:$0.uuid) }
+        check(four.count == 4 && Set(four).count == 4 && ShortcutSpec.validate(four + [.reconnectAll]), "late monitor sorted first does not reuse a taken digit")
+        let many = (0..<12).map { MonitorRecord(uuid:"n\($0)", alias:"", x:$0 * 1000 + 10000, isBuiltIn:false) }
+        seeded.seedDefaults(three + [farLeft] + many)
+        let all = (three + [farLeft] + many).compactMap { seeded.shortcut(for:$0.uuid) }
+        check(all.count == 9 && ShortcutSpec.validate(all + [.reconnectAll]), "more than nine monitors never produce duplicate shortcuts")
+        UserDefaults(suiteName:seedSuite)?.removePersistentDomain(forName:seedSuite)
         print("Blackout core tests: PASS (\(checks) assertions)")
     }
 }
