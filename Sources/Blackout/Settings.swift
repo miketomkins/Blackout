@@ -6,6 +6,7 @@ final class SettingsViewController: NSViewController {
     weak var delegate: AppDelegate?
     var fields: [String: (NSTextField, ShortcutRecorder)] = [:]
     var rows: [String: NSStackView] = [:]
+    var inputControls: [String: InputControls] = [:]
     var systemWarnings: [String: String] = [:]
     let displayIdentifier = DisplayIdentifier()
     let feedback = NSTextField(wrappingLabelWithString: "")
@@ -36,7 +37,7 @@ final class SettingsViewController: NSViewController {
         stack.addArrangedSubview(title)
         let help = NSTextField(
             wrappingLabelWithString:
-                "Off disconnects the display from macOS; it does not cut panel power. The last active display stays on. Names and shortcuts are remembered; use Forget to remove a monitor that's no longer connected."
+                "A shortcut either disconnects a monitor from macOS (windows move to the other screens; panel power stays on) or switches its input to your other computer over DDC (windows stay put). The last active display stays on. Use Forget to remove a monitor that's no longer connected."
         )
         help.textColor = .secondaryLabelColor
         stack.addArrangedSubview(help)
@@ -89,9 +90,22 @@ final class SettingsViewController: NSViewController {
                             "Remove this monitor's name and shortcut. It comes back with defaults if connected again."
                         row.addArrangedSubview(forget)
                     }
-                    stack.addArrangedSubview(row)
+                    let container = NSStackView(views: [row])
+                    container.orientation = .vertical
+                    container.alignment = .leading
+                    container.spacing = 6
+                    let controls = InputControls(
+                        uuid: monitor.uuid, target: self, action: #selector(inputControlsChanged(_:)))
+                    controls.load(
+                        setting: d.store.inputSwitch(for: monitor.uuid), inputs: d.store.knownInputs(for: monitor.uuid))
+                    if !monitor.active || disabled.contains(monitor.uuid) {
+                        controls.setUnavailable("Connect this monitor to change what its shortcut does.")
+                    }
+                    container.addArrangedSubview(controls.row)
+                    inputControls[monitor.uuid] = controls
+                    stack.addArrangedSubview(container)
                     fields[monitor.uuid] = (name, shortcut)
-                    rows[monitor.uuid] = row
+                    rows[monitor.uuid] = container
                 }
             }
         } catch { feedback.stringValue = error.localizedDescription }
@@ -123,8 +137,38 @@ final class SettingsViewController: NSViewController {
         loginStatus.setAccessibilityIdentifier("blackout.loginStatus")
         stack.addArrangedSubview(loginStatus)
         refreshLogin()
-        view.frame.size.height = CGFloat(325 + fields.count * 38)
+        view.frame.size.height = Self.height(monitors: fields.count)
         evaluateConflicts(showSummary: false)
+        refreshInputs()
+    }
+    static func height(monitors: Int) -> CGFloat { CGFloat(325 + monitors * 72) }
+
+    /// Reads each connected monitor's current input and input list over DDC in the background.
+    func refreshInputs() {
+        guard let d = delegate else { return }
+        let disabled = d.store.disabledUUIDs
+        let live = Set(((try? d.backend.enumerate(store: d.store, remember: false)) ?? []).filter(\.active).map(\.uuid))
+        for (uuid, controls) in inputControls where live.contains(uuid) && !disabled.contains(uuid) {
+            controls.setChecking()
+            DispatchQueue.global(qos: .userInitiated).async { [weak self, backend = d.backend, store = d.store] in
+                let result = Result { try backend.inputInfo(uuid: uuid, store: store) }
+                DispatchQueue.main.async {
+                    guard let self, let controls = self.inputControls[uuid] else { return }
+                    switch result {
+                    case .success(let info):
+                        // While Blackout has the monitor on the other computer, its current input isn't the Mac's.
+                        let away = store.switchedUUIDs.contains(uuid)
+                        controls.update(inputs: info.inputs, detectedMacInput: away ? nil : info.current)
+                    case .failure(let error):
+                        controls.setUnavailable("DDC isn't available: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+    @objc func inputControlsChanged(_ sender: NSPopUpButton) {
+        guard let uuid = sender.identifier?.rawValue else { return }
+        inputControls[uuid]?.refreshEnabled()
     }
     // Flags duplicates, the reserved key and standard app shortcuts like ⌘C (blocking),
     // plus enabled macOS shortcuts and other Command-only combinations (warning only).
@@ -171,6 +215,25 @@ final class SettingsViewController: NSViewController {
             evaluateConflicts()
             return
         }
+        var inputSettings: [String: InputSwitchSetting?] = [:]
+        for (uuid, controls) in inputControls where controls.isEditable {
+            let name = fields[uuid]?.0.stringValue ?? "Monitor"
+            guard let setting = controls.chosenSetting() else {
+                if d.store.switchedUUIDs.contains(uuid) {
+                    fail(
+                        "\(name) is on the other computer. Bring it back to the Mac before changing what its shortcut does."
+                    )
+                    return
+                }
+                inputSettings[uuid] = .some(nil)
+                continue
+            }
+            guard setting.macInput != setting.otherInput else {
+                fail("\(name): the Mac's input and the other computer's input must be different.")
+                return
+            }
+            inputSettings[uuid] = .some(setting)
+        }
         do {
             let monitors = try d.backend.enumerate(store: d.store)
             let errors = d.configureHotkeys(monitors: monitors, overrides: specs)
@@ -182,6 +245,7 @@ final class SettingsViewController: NSViewController {
                 d.store.setAlias(pair.0.stringValue, for: uuid)
                 d.store.setShortcut(pair.1.spec, for: uuid)
             }
+            for (uuid, setting) in inputSettings { d.store.setInputSwitch(setting, for: uuid) }
             d.updateShortcutError([])
             d.buildMenu()
             evaluateConflicts(showSummary: false)
@@ -217,9 +281,10 @@ final class SettingsViewController: NSViewController {
             do {
                 try d.backend.forget(uuid: uuid, store: d.store)
                 self.fields[uuid] = nil
+                self.inputControls[uuid] = nil
                 self.rows.removeValue(forKey: uuid)?.removeFromSuperview()
                 window.setContentSize(
-                    NSSize(width: window.contentLayoutRect.width, height: CGFloat(325 + self.fields.count * 38)))
+                    NSSize(width: window.contentLayoutRect.width, height: Self.height(monitors: self.fields.count)))
                 if let monitors = try? d.backend.enumerate(store: d.store) {
                     d.updateShortcutError(d.configureHotkeys(monitors: monitors))
                 }
@@ -262,5 +327,106 @@ final class SettingsViewController: NSViewController {
         super.viewWillDisappear()
         for (_, recorder) in fields.values { recorder.stopRecording() }
         displayIdentifier.dismissAll()
+    }
+}
+
+/// The per-monitor "what does the shortcut do" line: disconnect, or switch between the Mac's and another input.
+final class InputControls {
+    let row = NSStackView()
+    private let mode = NSPopUpButton()
+    private let mac = NSPopUpButton()
+    private let other = NSPopUpButton()
+    private let note = NSTextField(labelWithString: "")
+    private var inputs: [UInt8] = []
+    private var saved: InputSwitchSetting?
+    private(set) var isEditable = false
+
+    init(uuid: String, target: AnyObject, action: Selector) {
+        mode.addItems(withTitles: ["Shortcut disconnects", "Shortcut switches input"])
+        for (popup, width, key) in [(mode, 190.0, "mode"), (mac, 120.0, "mac"), (other, 120.0, "other")] {
+            popup.identifier = NSUserInterfaceItemIdentifier(uuid)
+            popup.setAccessibilityIdentifier("monitor.input.\(key).\(uuid)")
+            popup.target = target
+            popup.action = action
+            popup.widthAnchor.constraint(equalToConstant: width).isActive = true
+        }
+        mode.setAccessibilityLabel("Shortcut action")
+        mac.setAccessibilityLabel("Mac's input")
+        other.setAccessibilityLabel("Other computer's input")
+        mac.toolTip = "The input your Mac is connected to. Blackout detects it; change it if it's wrong."
+        other.toolTip = "The input your other computer is connected to."
+        note.font = .systemFont(ofSize: 11)
+        note.textColor = .secondaryLabelColor
+        let macLabel = NSTextField(labelWithString: "Mac")
+        let otherLabel = NSTextField(labelWithString: "Other")
+        for label in [macLabel, otherLabel] { label.textColor = .secondaryLabelColor }
+        row.orientation = .horizontal
+        row.spacing = 8
+        for view in [mode, macLabel, mac, otherLabel, other, note] { row.addArrangedSubview(view) }
+    }
+
+    func load(setting: InputSwitchSetting?, inputs: [UInt8]) {
+        saved = setting
+        mode.selectItem(at: setting == nil ? 0 : 1)
+        update(inputs: inputs, detectedMacInput: nil)
+    }
+
+    /// Fills the input lists. The Mac's input is the saved one if any, otherwise the input the monitor shows now.
+    func update(inputs newInputs: [UInt8], detectedMacInput: UInt8?) {
+        var list = newInputs
+        for code in [saved?.macInput, saved?.otherInput, detectedMacInput].compactMap({ $0 }) where !list.contains(code)
+        {
+            list.append(code)
+        }
+        inputs = list
+        let macInput = saved?.macInput ?? detectedMacInput ?? selectedCode(mac)
+        fill(mac, selecting: macInput)
+        let otherInput =
+            saved?.otherInput ?? selectedCode(other)
+            ?? macInput.flatMap { InputSwitchPolicy.defaultOtherInput(inputs: list, macInput: $0) }
+        fill(other, selecting: otherInput)
+        isEditable = list.count >= 2
+        note.stringValue = isEditable ? "" : "Checking monitor…"
+        refreshEnabled()
+    }
+
+    func setChecking() {
+        if inputs.count < 2 { note.stringValue = "Checking monitor…" }
+    }
+
+    func setUnavailable(_ reason: String) {
+        isEditable = false
+        note.stringValue = saved == nil ? "DDC unavailable" : ""
+        row.toolTip = reason
+        refreshEnabled()
+    }
+
+    func refreshEnabled() {
+        mode.isEnabled = isEditable
+        let switching = isEditable && mode.indexOfSelectedItem == 1
+        mac.isEnabled = switching
+        other.isEnabled = switching
+    }
+
+    /// nil when the shortcut should disconnect.
+    func chosenSetting() -> InputSwitchSetting? {
+        guard mode.indexOfSelectedItem == 1, let macInput = selectedCode(mac), let otherInput = selectedCode(other)
+        else {
+            return nil
+        }
+        return InputSwitchSetting(macInput: macInput, otherInput: otherInput)
+    }
+
+    private func fill(_ popup: NSPopUpButton, selecting code: UInt8?) {
+        popup.removeAllItems()
+        for input in inputs {
+            popup.addItem(withTitle: DDC.inputName(input))
+            popup.lastItem?.tag = Int(input)
+        }
+        if let code, let index = inputs.firstIndex(of: code) { popup.selectItem(at: index) }
+    }
+
+    private func selectedCode(_ popup: NSPopUpButton) -> UInt8? {
+        popup.selectedItem.map { UInt8(truncatingIfNeeded: $0.tag) }
     }
 }

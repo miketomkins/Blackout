@@ -5,6 +5,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 ## [Unreleased]
 
 ### Added
+- **Switch input** mode per monitor: a shortcut switches the monitor's input to another computer over DDC/CI and back, instead of disconnecting it, so macOS keeps the display and windows don't move. Settings detects the Mac's input and lists the monitor's own inputs for the other computer. Reconnect All and Quit bring switched monitors back to the Mac. `--inputs` reports each monitor's input; `--toggle` and `--connect-all` follow the monitor's mode. ([#6](https://github.com/miketomkins/Blackout/issues/6))
 - **Identify** button in Settings: outlines a monitor in red with its name for two seconds, like Displays settings does, so you can tell which row is which screen. It appears only for monitors that are on the desktop.
 - Shortcut recorder in Settings: click a shortcut and press the keys instead of typing `ctrl+alt+r`. Esc cancels recording and Delete clears the shortcut. Blackout's own hotkeys are paused while recording, so pressing a current shortcut records it instead of toggling a monitor. ([#6](https://github.com/miketomkins/Blackout/issues/6))
 - Conflict flagging while recording: duplicates, the reserved ⌃⌥0 and standard app shortcuts such as ⌘C, ⌘V and ⌘Z are shown in red and block saving; enabled macOS keyboard shortcuts and other Command-only combinations are shown in orange as a warning. ([#6](https://github.com/miketomkins/Blackout/issues/6))

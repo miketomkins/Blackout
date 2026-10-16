@@ -196,13 +196,14 @@ public final class DisplayBackend {
         public let inputs: [UInt8]
     }
 
-    /// Reads a monitor's current input and its input list; the list is cached for Settings.
+    /// Reads a monitor's current input and its input list. The list comes from the monitor's capabilities string,
+    /// read once (about a second over DDC) and cached; later calls only read the current input.
     public func inputInfo(uuid: String, store: PreferencesStore) throws -> InputInfo {
         try withLock {
             let ddc = try ddcForLiveMonitor(uuid: uuid, store: store)
             let current = try ddc.currentInput()
             var inputs = store.knownInputs(for: uuid)
-            if let caps = try? ddc.capabilities() {
+            if inputs.isEmpty, let caps = try? ddc.capabilities() {
                 let listed = DDC.inputs(fromCapabilities: caps)
                 if !listed.isEmpty {
                     inputs = listed

@@ -97,13 +97,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         do {
             let monitors = try backend.enumerate(store: store)
             let activeCount = monitors.filter(\.active).count
+            let switched = store.switchedUUIDs
             for display in monitors {
-                let item = NSMenuItem(
-                    title: "\(display.active ? "Disconnect" : "Connect") \(display.alias)",
-                    action: #selector(toggle(_:)), keyEquivalent: "")
+                let item = NSMenuItem(title: "", action: #selector(toggle(_:)), keyEquivalent: "")
+                if let setting = store.inputSwitch(for: display.uuid) {
+                    // Switch input mode: the display stays on the desktop, so the last-display guard doesn't apply.
+                    item.title =
+                        switched.contains(display.uuid)
+                        ? "Bring \(display.alias) back to \(DDC.inputName(setting.macInput))"
+                        : "Send \(display.alias) to \(DDC.inputName(setting.otherInput))"
+                    item.isEnabled = !busy && display.active
+                } else {
+                    item.title = "\(display.active ? "Disconnect" : "Connect") \(display.alias)"
+                    item.isEnabled = !busy && !display.isBuiltIn && (!display.active || activeCount > 1)
+                }
                 item.target = self
                 item.representedObject = display.uuid
-                item.isEnabled = !busy && !display.isBuiltIn && (!display.active || activeCount > 1)
                 if let shortcut = store.shortcut(for: display.uuid) {
                     item.keyEquivalent = shortcut.key
                     item.keyEquivalentModifierMask = shortcut.modifiers.eventFlags
@@ -138,7 +147,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func toggle(_ sender: NSMenuItem) { if let uuid = sender.representedObject as? String { toggleUUID(uuid) } }
     func toggleUUID(_ uuid: String) {
         perform { [backend, store] in
-            try backend.toggle(uuid: uuid, store: store)
+            if store.inputSwitch(for: uuid) != nil {
+                try backend.toggleInput(uuid: uuid, store: store)
+            } else {
+                try backend.toggle(uuid: uuid, store: store)
+            }
             return []
         }
     }
@@ -150,8 +163,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     errors.append("\(monitor.alias): \(error.localizedDescription)")
                 }
             }
+            errors += Self.returnSwitchedInputs(backend: backend, store: store)
             return errors
         }
+    }
+    /// Brings every monitor Blackout sent to the other computer back to the Mac's input.
+    static func returnSwitchedInputs(backend: DisplayBackend, store: PreferencesStore) -> [String] {
+        var errors: [String] = []
+        for uuid in store.switchedUUIDs.sorted() {
+            do { try backend.returnInputToMac(uuid: uuid, store: store) } catch {
+                errors.append("\(store.alias(for: uuid, fallback: "Monitor")): \(error.localizedDescription)")
+            }
+        }
+        return errors
     }
     // A change can wait seconds for the lock and for macOS to confirm it; keep that off the main thread.
     // busy stays set until any error alert is dismissed, so shortcuts and menu items cannot queue more work.
@@ -207,6 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.messageText = "Quit Blackout?"
         alert.informativeText =
             (store.disabledUUIDs.isEmpty ? "" : "Monitors Blackout turned off will be reconnected. ")
+            + (store.switchedUUIDs.isEmpty ? "" : "Monitors on the other computer will switch back to the Mac. ")
             + "Your monitor shortcuts will stop working until you open Blackout again."
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
@@ -217,6 +242,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var errors: [String] = []
         operations.sync {}  // Let an in-flight change finish before restoring displays.
         store.reload()
+        // At logout or shutdown the Mac's picture is going away anyway; leave monitors on the other computer.
+        if !poweringOff { errors += Self.returnSwitchedInputs(backend: backend, store: store) }
         for uuid in store.disabledUUIDs {
             do { try backend.setEnabled(uuid: uuid, enabled: true, store: store) } catch {
                 errors.append(error.localizedDescription)
