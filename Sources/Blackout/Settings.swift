@@ -168,7 +168,7 @@ final class SettingsViewController: NSViewController {
     }
     @objc func inputControlsChanged(_ sender: NSPopUpButton) {
         guard let uuid = sender.identifier?.rawValue else { return }
-        inputControls[uuid]?.refreshEnabled()
+        inputControls[uuid]?.userChanged(sender)
     }
     // Flags duplicates, the reserved key and standard app shortcuts like ⌘C (blocking),
     // plus enabled macOS shortcuts and other Command-only combinations (warning only).
@@ -339,6 +339,8 @@ final class InputControls {
     private let note = NSTextField(labelWithString: "")
     private var inputs: [UInt8] = []
     private var saved: InputSwitchSetting?
+    private var detectedMac: UInt8?
+    private var otherChosen = false
     private(set) var isEditable = false
 
     init(uuid: String, target: AnyObject, action: Selector) {
@@ -379,13 +381,16 @@ final class InputControls {
             list.append(code)
         }
         inputs = list
-        let macInput = saved?.macInput ?? detectedMacInput ?? selectedCode(mac)
+        if let detectedMacInput { detectedMac = detectedMacInput }
+        let macInput = saved?.macInput ?? detectedMac
         fill(mac, selecting: macInput)
+        let chosenOther = otherChosen ? selectedCode(other) : nil
         let otherInput =
-            saved?.otherInput ?? selectedCode(other)
+            saved?.otherInput ?? chosenOther
             ?? macInput.flatMap { InputSwitchPolicy.defaultOtherInput(inputs: list, macInput: $0) }
         fill(other, selecting: otherInput)
-        isEditable = list.count >= 2
+        // Until the Mac's input is known (saved or detected), a popup's default first item could be mistaken for it.
+        isEditable = list.count >= 2 && macInput != nil
         note.stringValue = isEditable ? "" : "Checking monitor…"
         refreshEnabled()
     }
@@ -398,6 +403,12 @@ final class InputControls {
         isEditable = false
         note.stringValue = saved == nil ? "DDC unavailable" : ""
         row.toolTip = reason
+        refreshEnabled()
+    }
+
+    /// A popup changed by the user; remembers an explicit "Other" choice across background refreshes.
+    func userChanged(_ popup: NSPopUpButton) {
+        if popup === other { otherChosen = true }
         refreshEnabled()
     }
 
