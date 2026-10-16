@@ -1,4 +1,5 @@
 import Foundation
+import BlackoutCore
 
 var checks = 0
 func check(_ condition: @autoclosure () -> Bool, _ message: String) {

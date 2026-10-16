@@ -1,4 +1,5 @@
 import AppKit
+import BlackoutCore
 
 /// Click, then press the shortcut. Esc cancels; Delete clears it.
 final class ShortcutRecorder:NSButton {

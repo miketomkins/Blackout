@@ -1,4 +1,5 @@
 import AppKit
+import BlackoutCore
 import Carbon
 
 final class HotkeyManager {

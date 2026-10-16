@@ -1,4 +1,5 @@
 import AppKit
+import BlackoutCore
 
 /// Outlines a monitor with a red border and its name, like Displays settings does, so you can tell which row is which.
 final class DisplayIdentifier {

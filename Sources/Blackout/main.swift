@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import BlackoutCore
 import ServiceManagement
 
 func output(_ value:Any) throws { print(String(data:try JSONSerialization.data(withJSONObject:value,options:[.sortedKeys]),encoding:.utf8)!) }

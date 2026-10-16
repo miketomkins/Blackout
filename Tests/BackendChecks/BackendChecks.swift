@@ -1,4 +1,5 @@
 import Foundation
+import BlackoutCore
 
 final class SimulatedHardware:DisplayHardware {
     var displays:[MonitorRecord]
@@ -33,7 +34,7 @@ func rejects(_ operation:() throws -> Void,_ message:String) { do { try operatio
         let suite = "com.miketomkins.Blackout.backendtests.\(UUID().uuidString)"
         defer { UserDefaults(suiteName:suite)?.removePersistentDomain(forName:suite) }
         let store = PreferencesStore(suiteName:suite), hw = SimulatedHardware()
-        let lock = URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("build/tests-\(UUID().uuidString)/display.lock").path
+        let lock = URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("build/tests-\(UUID().uuidString)/display.lock").path
         defer { try? FileManager.default.removeItem(atPath:(lock as NSString).deletingLastPathComponent) }
         let backend = DisplayBackend(hardware:hw,lockPath:lock,settleTimeout:0)
         _ = try backend.enumerate(store:store,remember:false)
