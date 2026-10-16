@@ -5,6 +5,8 @@
 
 A small macOS menu-bar app for disconnecting and reconnecting external monitors, with memorable names and customizable global shortcuts.
 
+Blackout is built for desks where external monitors are shared between a Mac and another computer, such as a work laptop or PC. Turn a monitor off on the Mac to hand it to the other machine, keep working on your remaining screens, then bring it back with a shortcut — no cables to swap. Whether the monitor switches to the other input on its own depends on its auto-input setting.
+
 > **Experimental beta.** Blackout uses a private macOS display API. Keep physical access to your Mac and a way to reconnect your displays while testing. It is not a panel power-off utility and does not aim to reproduce BetterDisplay's full feature set.
 
 ## Features
