@@ -92,3 +92,7 @@ Local verification passed: core assertions, backend assertions, executable CLI t
 The implementation is original Swift/AppKit code. Its private display-enable function declaration was cross-checked against [displayplacer](https://github.com/jakehilborn/displayplacer), Header.h blob `f8bf91b07f795d9fa6ed145bab7511a7c2527b69`. No BetterDisplay binary or source is bundled.
 
 Bug reports are welcome via [Issues](https://github.com/miketomkins/Blackout/issues). Include your macOS version, hardware/connection type, symptoms and reproduction steps. Redact display UUIDs, serial numbers and personal paths from diagnostics before posting.
+
+## License
+
+Blackout is open source under the MIT License. See [LICENSE](LICENSE).
