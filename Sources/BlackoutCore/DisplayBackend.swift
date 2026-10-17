@@ -74,11 +74,17 @@ public final class DisplayBackend {
     private let hardware: DisplayHardware
     private let lockPath: String
     private let settleTimeout: TimeInterval
+    private let ddcChannel: (MonitorRecord) -> DDCTransport?
+    private let ddcSleep: (UInt32) -> Void
     public init(
-        hardware: DisplayHardware = NativeDisplayHardware(), lockPath: String? = nil, settleTimeout: TimeInterval = 3
+        hardware: DisplayHardware = NativeDisplayHardware(), lockPath: String? = nil, settleTimeout: TimeInterval = 3,
+        ddcChannel: @escaping (MonitorRecord) -> DDCTransport? = { NativeDDCTransport.forDisplay($0.displayID) },
+        ddcSleep: @escaping (UInt32) -> Void = { usleep($0) }
     ) {
         self.hardware = hardware
         self.settleTimeout = settleTimeout
+        self.ddcChannel = ddcChannel
+        self.ddcSleep = ddcSleep
         self.lockPath = lockPath ?? (NSHomeDirectory() + "/Library/Application Support/Blackout/display.lock")
     }
     public func enumerate(store: PreferencesStore, remember: Bool = true) throws -> [MonitorRecord] {
@@ -157,6 +163,7 @@ public final class DisplayBackend {
                 }
             }
             store.remember(live + (current == nil ? [target] : []))
+            if !enabled { recordReturnInput(for: target, store: store) }
             if !enabled { store.setDisabled(uuid: uuid, disabled: true) }
             do { try hardware.apply(id: target.displayID, enabled: enabled) } catch {
                 if !enabled, (try? hardware.snapshot().contains(where: { $0.uuid == uuid && $0.active })) == true {
@@ -181,8 +188,104 @@ public final class DisplayBackend {
             }
             store.setDisabled(uuid: uuid, disabled: !enabled)
             store.remember(state)
+            if enabled, let monitor = state.first(where: { $0.uuid == uuid }) {
+                restoreReturnInput(for: monitor, store: store)
+            }
         }
     }
+    // Best effort and silent: monitors without DDC simply keep today's behavior. These run inside withLock, so they
+    // use the DDC engine directly rather than the locked input-switch methods.
+    private func recordReturnInput(for monitor: MonitorRecord, store: PreferencesStore) {
+        guard !store.switchedUUIDs.contains(monitor.uuid), let channel = ddcChannel(monitor) else { return }
+        let input =
+            store.inputSwitch(for: monitor.uuid)?.macInput
+            ?? (try? DDC(transport: channel, sleep: ddcSleep).currentInput())
+        store.setReturnInput(input, for: monitor.uuid)
+    }
+    private func restoreReturnInput(for monitor: MonitorRecord, store: PreferencesStore) {
+        guard let wanted = store.returnInput(for: monitor.uuid) else { return }
+        store.setReturnInput(nil, for: monitor.uuid)
+        guard let channel = ddcChannel(monitor) else { return }
+        let ddc = DDC(transport: channel, sleep: ddcSleep)
+        if (try? ddc.currentInput()) != wanted { try? ddc.switchInput(to: wanted) }
+    }
+    // MARK: Input switching (DDC/CI)
+
+    public struct InputInfo: Equatable {
+        public let current: UInt8
+        public let inputs: [UInt8]
+    }
+
+    /// Reads a monitor's current input and its input list. The list comes from the monitor's capabilities string,
+    /// read once (about a second over DDC) and cached; later calls only read the current input.
+    public func inputInfo(uuid: String, store: PreferencesStore) throws -> InputInfo {
+        try withLock {
+            let ddc = try ddcForLiveMonitor(uuid: uuid, store: store)
+            let current = try ddc.currentInput()
+            // The monitor can come back on its own (say the other computer sleeps and auto-input picks the Mac),
+            // so a reading of the Mac's input outranks Blackout's record of having sent it away.
+            if store.switchedUUIDs.contains(uuid), current == store.inputSwitch(for: uuid)?.macInput {
+                store.setSwitched(uuid: uuid, switched: false)
+            }
+            var inputs = store.knownInputs(for: uuid)
+            if inputs.isEmpty, let caps = try? ddc.capabilities() {
+                let listed = DDC.inputs(fromCapabilities: caps)
+                if !listed.isEmpty {
+                    inputs = listed
+                    store.setKnownInputs(listed, for: uuid)
+                }
+            }
+            return InputInfo(current: current, inputs: inputs)
+        }
+    }
+
+    /// Sends the monitor to the other computer, or back to the Mac if it's away. Returns the new input.
+    @discardableResult public func toggleInput(uuid: String, store: PreferencesStore) throws -> UInt8 {
+        try withLock {
+            let setting = try inputSetting(uuid: uuid, store: store)
+            let ddc = try ddcForLiveMonitor(uuid: uuid, store: store)
+            let target = InputSwitchPolicy.toggleTarget(
+                current: try? ddc.currentInput(), setting: setting, switched: store.switchedUUIDs.contains(uuid))
+            try ddc.switchInput(to: target)
+            store.setSwitched(uuid: uuid, switched: target != setting.macInput)
+            return target
+        }
+    }
+
+    /// Brings a monitor back to the Mac's input (Reconnect All, Quit).
+    public func returnInputToMac(uuid: String, store: PreferencesStore) throws {
+        try withLock {
+            let setting = try inputSetting(uuid: uuid, store: store)
+            let ddc = try ddcForLiveMonitor(uuid: uuid, store: store)
+            try ddc.switchInput(to: setting.macInput)
+            store.setSwitched(uuid: uuid, switched: false)
+        }
+    }
+
+    private func inputSetting(uuid: String, store: PreferencesStore) throws -> InputSwitchSetting {
+        store.reload()
+        guard let setting = store.inputSwitch(for: uuid) else {
+            throw BlackoutError.unavailable("This monitor isn't set to switch inputs. Choose Switch input in Settings.")
+        }
+        return setting
+    }
+
+    /// A DDC write only helps if the Mac is driving the monitor: a Blackout-disconnected display shows nothing on
+    /// the Mac's input. So require the monitor to be on the desktop and not disconnected by Blackout.
+    private func ddcForLiveMonitor(uuid: String, store: PreferencesStore) throws -> DDC {
+        store.reload()
+        guard !store.disabledUUIDs.contains(uuid) else {
+            throw BlackoutError.unsafe("Blackout has this monitor disconnected. Reconnect it before switching inputs.")
+        }
+        guard let monitor = try hardware.snapshot().first(where: { $0.uuid == uuid && $0.active }) else {
+            throw BlackoutError.unavailable("This monitor isn't on the Mac's desktop right now.")
+        }
+        guard let channel = ddcChannel(monitor) else {
+            throw BlackoutError.unavailable("Blackout can't find this monitor's DDC connection.")
+        }
+        return DDC(transport: channel, sleep: ddcSleep)
+    }
+
     private func withLock<T>(_ body: () throws -> T) throws -> T {
         let parent = URL(fileURLWithPath: lockPath).deletingLastPathComponent()
         try FileManager.default.createDirectory(

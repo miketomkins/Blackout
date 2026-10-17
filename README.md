@@ -15,6 +15,7 @@ Blackout is built for desks where external monitors are shared between a Mac and
 - Rename monitors; names follow their stable display identities.
 - Record global shortcuts in Settings, with conflict warnings.
 - Identify a monitor from Settings: it's outlined in red with its name.
+- Switch a monitor's input to another computer over DDC/CI instead of disconnecting it, so windows stay put.
 - Reconnect All, including a reserved global shortcut.
 - Protect the last active display and built-in displays.
 - Optional Launch at Login through macOS ServiceManagement.
@@ -36,6 +37,14 @@ Not sure which row is which screen? Click **Identify** to outline that monitor i
 Conflicts are flagged as you record. These are shown in red and block saving: a shortcut used by another monitor, the reserved Control–Option–0, or a standard app shortcut such as ⌘C (Copy), ⌘V or ⌘Z, because a global shortcut would replace it in every app. These are shown in orange and can still be saved: an enabled macOS keyboard shortcut (macOS may catch it first), or another Command-only combination such as ⌘1. A specific app's own custom shortcuts can't be detected.
 
 “Off” removes the display from macOS's active desktop, so windows can move to the remaining display. It does **not** cut electrical power to the panel.
+
+### Switching inputs to another computer
+
+If your monitors are shared with another computer, a shortcut can **switch the monitor's input** instead of disconnecting it. In **Settings…**, set a monitor to **Shortcut switches input**, check the **Mac** input (detected automatically) and choose the **Other** computer's input from the monitor's own list, then **Save Changes**. The shortcut then sends that monitor to the other computer and back. Your Mac keeps the display, so windows and resolution don't change.
+
+**Reconnect All** (Control–Option–0) also brings every switched monitor back to the Mac, and so does quitting Blackout (except at logout or shutdown). This mode needs a monitor with DDC/CI turned on in its menu. It was tested on Dell U2723QE monitors over DisplayPort and USB-C on an Apple Silicon Mac. Some Mac HDMI ports don't pass DDC. Blackout won't switch a monitor it currently has disconnected: reconnect it first.
+
+**Which mode to pick.** Because the Mac keeps a switched monitor, the pointer still travels across it while it shows the other computer. If you'd rather the pointer skip it, keep **Shortcut disconnects**: most monitors switch to the other live input by themselves when the Mac lets go, and when you reconnect, Blackout switches the monitor back to the Mac's input over DDC. Your windows move to the remaining display while it's away.
 
 ## Download and install
 
@@ -72,17 +81,18 @@ Tests cover policy, saved settings, simulated hardware failures/reconnects and t
 /Applications/Blackout.app/Contents/MacOS/Blackout --connect UUID
 /Applications/Blackout.app/Contents/MacOS/Blackout --disconnect UUID
 /Applications/Blackout.app/Contents/MacOS/Blackout --connect-all
+/Applications/Blackout.app/Contents/MacOS/Blackout --inputs
 /Applications/Blackout.app/Contents/MacOS/Blackout --show-settings
 ```
 
-Use the exact UUID from `--list`, not an array index. `--list` and `--diagnostics` are read-only. Mutating operations are serialized between app and CLI processes. Unknown/incomplete arguments are rejected.
+Use the exact UUID from `--list`, not an array index. `--list` and `--diagnostics` are read-only. `--inputs` only asks monitors for their inputs over DDC; it changes nothing on them, and it caches each monitor's input list. Mutating operations are serialized between app and CLI processes. Unknown/incomplete arguments are rejected.
 
 Preferences use the `com.miketomkins.Blackout.preferences` UserDefaults domain. The display-operation lock is in the current user's `Library/Application Support/Blackout` directory. Blackout has no network service, telemetry or runtime dependency on BetterDisplay. Carbon shortcuts do not require Accessibility permission.
 
 ## Known beta limitations
 
 - On the tested setup, disconnecting one monitor changed the remaining monitor's logical workspace from 3840×2160 to 1920×1080. Reconnecting restored the previous arrangement. This depended on which monitor was disconnected; exact mode and window-layout preservation are **not guaranteed**.
-- Private macOS APIs can change with OS releases.
+- Private macOS APIs can change with OS releases. Switch input mode uses Apple Silicon's private DDC interface (as m1ddc and MonitorControl do) and isn't validated right after wake from sleep yet.
 - Sleep/wake, physical cable hotplug, other hardware/OS versions and launch after an actual logout/login are not yet validated. Login-item registration and persistence across app restart were tested.
 - A disconnected display can lose its live UUID. Reconnect may use its last validated runtime address, rejects a conflicting current identity, and checks that the intended display returns. After a cable/identity change, reconnect the cable normally if Blackout cannot restore it.
 - Another display controller was left running during live acceptance. Native operation was verified, but coexistence without interference is not guaranteed.
