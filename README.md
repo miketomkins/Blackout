@@ -5,7 +5,7 @@
 
 A small macOS menu-bar app for disconnecting and reconnecting external monitors, with memorable names and customizable global shortcuts.
 
-Blackout is built for desks where external monitors are shared between a Mac and another computer, such as a work laptop or PC. Turn a monitor off on the Mac to hand it to the other machine, keep working on your remaining screens, then bring it back with a shortcut — no cables to swap. Whether the monitor switches to the other input on its own depends on its auto-input setting.
+Blackout is built for desks where external monitors are shared between a Mac and another computer, such as a work laptop or PC. Turn a monitor off on the Mac to hand it to the other machine, keep working on your remaining screens, then bring it back with a shortcut — no cables to swap. When Blackout disconnects a monitor, the monitor's auto input select decides whether it shows the other computer; when you reconnect it, Blackout switches it back to the Mac's input over DDC/CI if the monitor supports it. A monitor can also be set to switch inputs directly (see [Switching inputs](#switching-inputs-to-another-computer)).
 
 > **Experimental beta.** Blackout uses a private macOS display API. Keep physical access to your Mac and a way to reconnect your displays while testing. It is not a panel power-off utility and does not aim to reproduce BetterDisplay's full feature set.
 
@@ -20,7 +20,7 @@ Blackout is built for desks where external monitors are shared between a Mac and
 - Protect the last active display and built-in displays.
 - Optional Launch at Login through macOS ServiceManagement.
 - Remember disconnected monitors across app restarts, and forget monitors that are no longer connected.
-- Reconnect displays Blackout disabled when quitting normally.
+- Reconnect displays Blackout disabled when quitting normally (Quit asks for confirmation first).
 
 ### Two-monitor defaults
 
@@ -58,13 +58,14 @@ The build is **ad-hoc signed, not Developer ID signed or notarized**; macOS may 
 
 ## Build and test
 
-Requires macOS and an installed Swift compiler / Xcode Command Line Tools. No third-party package dependencies are required. The project is a Swift package (`Package.swift`): `BlackoutCore` holds the display backend and settings logic, `Blackout` is the menu-bar app and CLI, and you can open the folder in Xcode. `build.sh` builds the package and wraps the binary in `Blackout.app`. `test.sh` rebuilds, then runs the `CoreChecks` and `BackendChecks` programs and the CLI tests. These are plain programs rather than XCTest targets, so they run with only the Command Line Tools.
+Requires macOS and an installed Swift compiler / Xcode Command Line Tools. No third-party package dependencies are required. The project is a Swift package (`Package.swift`): `BlackoutCore` holds the display backend and settings logic, `Blackout` is the menu-bar app and CLI, and you can open the folder in Xcode. `build.sh` builds the package and wraps the binary in `Blackout.app`. `test.sh` rebuilds, then runs the `CoreChecks` and `BackendChecks` programs and the CLI tests. These are plain programs rather than XCTest targets, so they run with only the Command Line Tools. Code style is checked with swift-format (`.swift-format`); GitHub Actions runs the lint and `test.sh` on every pull request.
 
 ```sh
 git clone https://github.com/miketomkins/Blackout.git
 cd Blackout
 bash build.sh
 bash test.sh
+swift format lint --strict --recursive Sources Tests Package.swift Assets/generate-icon.swift
 open build/Blackout.app
 ```
 
@@ -102,7 +103,7 @@ If a display does not return, try Control–Option–0 or Reconnect All, then re
 
 ## Verification of the initial beta
 
-Local verification passed: core assertions, backend assertions, executable CLI tests, bundle signature checks and extracted release-archive checks. Live acceptance exercised both monitors, menu actions, default/custom global shortcuts, saved names, last-display rejection, concurrent requests, app restart after forced termination and reconnect on normal Quit. These are bounded results on one setup, not cross-device reliability certification. No hosted CI result is claimed.
+Local verification passed: core assertions, backend assertions, executable CLI tests, bundle signature checks and extracted release-archive checks. Live acceptance exercised both monitors, menu actions, default/custom global shortcuts, saved names, last-display rejection, concurrent requests, app restart after forced termination and reconnect on normal Quit. These are bounded results on one setup, not cross-device reliability certification. That beta predates the project's CI, which now runs lint and the test suite on GitHub's macOS runners.
 
 The implementation is original Swift/AppKit code. Its private display-enable function declaration was cross-checked against [displayplacer](https://github.com/jakehilborn/displayplacer), Header.h blob `f8bf91b07f795d9fa6ed145bab7511a7c2527b69`. No BetterDisplay binary or source is bundled.
 
