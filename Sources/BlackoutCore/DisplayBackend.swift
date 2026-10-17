@@ -222,6 +222,11 @@ public final class DisplayBackend {
         try withLock {
             let ddc = try ddcForLiveMonitor(uuid: uuid, store: store)
             let current = try ddc.currentInput()
+            // The monitor can come back on its own (say the other computer sleeps and auto-input picks the Mac),
+            // so a reading of the Mac's input outranks Blackout's record of having sent it away.
+            if store.switchedUUIDs.contains(uuid), current == store.inputSwitch(for: uuid)?.macInput {
+                store.setSwitched(uuid: uuid, switched: false)
+            }
             var inputs = store.knownInputs(for: uuid)
             if inputs.isEmpty, let caps = try? ddc.capabilities() {
                 let listed = DDC.inputs(fromCapabilities: caps)

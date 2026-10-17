@@ -262,6 +262,9 @@ func rejects(_ operation: () throws -> Void, _ message: String) {
         _ = try switcher.toggleInput(uuid: "right", store: ddcStore)
         check(panels["right"]!.vcp[0x60] == 0x0F, "and the record brings it back")
         panels["right"]!.silent = false
+        ddcStore.setSwitched(uuid: "right", switched: true)
+        _ = try switcher.inputInfo(uuid: "right", store: ddcStore)
+        check(ddcStore.switchedUUIDs.isEmpty, "reading the Mac's input clears a stale away record")
         let before = panels["right"]!.writes.count
         ddcStore.setDisabled(uuid: "right", disabled: true)
         rejects(
