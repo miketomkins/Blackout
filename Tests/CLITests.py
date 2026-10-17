@@ -14,7 +14,7 @@ class CLITests(unittest.TestCase):
     def test_help_returns_without_launching_gui(self):
         p = self.call('--help')
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertIn('Blackout 1.0.0', p.stdout)
+        self.assertIn('Blackout 1.2.0', p.stdout)
 
     def test_incomplete_mutation_is_rejected_not_launched(self):
         p = self.call('--connect')
