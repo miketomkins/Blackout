@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"; APP="$ROOT/build/Blackout.app"
 # The only place the version is set; the app and CLI read it from Info.plist.
-VERSION="1.0.0"; BUILD="1"
+VERSION="1.0.0"; BUILD="2"
 cd "$ROOT"
 swift build -c release --product Blackout
 BIN="$(swift build -c release --show-bin-path)/Blackout"
