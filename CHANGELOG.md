@@ -4,7 +4,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
-## [1.0.0-beta.2] - 2026-10-16
+## [1.2.0] - 2026-10-16
 
 ### Added
 - **Switch input** mode per monitor: a shortcut switches the monitor's input to another computer over DDC/CI and back, instead of disconnecting it, so macOS keeps the display and windows don't move. Settings detects the Mac's input and lists the monitor's own inputs for the other computer. Reconnect All and Quit bring switched monitors back to the Mac. `--inputs` reports each monitor's input; `--toggle` and `--connect-all` follow the monitor's mode. ([#6](https://github.com/miketomkins/Blackout/issues/6))
@@ -36,6 +36,6 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 - Menu-bar disconnect/reconnect for external monitors, custom names and global shortcuts, Reconnect All, Launch at Login, and a command-line interface. See the README for known limitations.
 
-[Unreleased]: https://github.com/miketomkins/Blackout/compare/v1.0.0-beta.2...HEAD
-[1.0.0-beta.2]: https://github.com/miketomkins/Blackout/compare/v1.0.0-beta.1...v1.0.0-beta.2
+[Unreleased]: https://github.com/miketomkins/Blackout/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/miketomkins/Blackout/compare/v1.0.0-beta.1...v1.2.0
 [1.0.0-beta.1]: https://github.com/miketomkins/Blackout/releases/tag/v1.0.0-beta.1
