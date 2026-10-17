@@ -44,6 +44,8 @@ If your monitors are shared with another computer, a shortcut can **switch the m
 
 **Reconnect All** (Control–Option–0) also brings every switched monitor back to the Mac, and so does quitting Blackout (except at logout or shutdown). This mode needs a monitor with DDC/CI turned on in its menu. It was tested on Dell U2723QE monitors over DisplayPort and USB-C on an Apple Silicon Mac. Some Mac HDMI ports don't pass DDC. Blackout won't switch a monitor it currently has disconnected: reconnect it first.
 
+**Which mode to pick.** Because the Mac keeps a switched monitor, the pointer still travels across it while it shows the other computer. If you'd rather the pointer skip it, keep **Shortcut disconnects**: most monitors switch to the other live input by themselves when the Mac lets go, and when you reconnect, Blackout switches the monitor back to the Mac's input over DDC. Your windows move to the remaining display while it's away.
+
 ## Download and install
 
 Download the Apple Silicon ZIP from [Releases](https://github.com/miketomkins/Blackout/releases). Releases are explicitly marked **pre-release** while Blackout is in beta.
