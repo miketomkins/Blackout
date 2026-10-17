@@ -251,6 +251,17 @@ public final class PreferencesStore {
         defaults.set(Array(ids).sorted(), forKey: "switchedUUIDs")
         save()
     }
+    /// The input a monitor showed before Blackout disconnected it, restored after reconnecting: with another
+    /// computer live on a second input, the monitor won't come back to the Mac on its own.
+    public func returnInput(for uuid: String) -> UInt8? {
+        ((defaults.dictionary(forKey: "returnInputs") as? [String: Int])?[uuid]).map { UInt8(truncatingIfNeeded: $0) }
+    }
+    public func setReturnInput(_ input: UInt8?, for uuid: String) {
+        var all = defaults.dictionary(forKey: "returnInputs") as? [String: Int] ?? [:]
+        all[uuid] = input.map(Int.init)
+        defaults.set(all, forKey: "returnInputs")
+        save()
+    }
     /// Input codes the monitor listed in its capabilities, cached so Settings opens instantly.
     public func knownInputs(for uuid: String) -> [UInt8] {
         ((defaults.dictionary(forKey: "knownInputs") as? [String: [Int]])?[uuid] ?? []).map {
@@ -274,6 +285,7 @@ public final class PreferencesStore {
         defaults.set(shortcuts, forKey: "shortcuts")
         setInputSwitch(nil, for: uuid)
         setKnownInputs([], for: uuid)
+        setReturnInput(nil, for: uuid)
         save()
     }
     public func seedDefaults(_ monitors: [MonitorRecord]) {

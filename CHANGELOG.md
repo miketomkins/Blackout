@@ -19,6 +19,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 - A monitor's shortcut can now be cleared. A cleared shortcut stays cleared instead of being re-seeded, and Settings no longer fills an empty shortcut with `ctrl+alt+r`. ([#2](https://github.com/miketomkins/Blackout/issues/2))
 
 ### Fixed
+- Reconnecting a monitor (its shortcut, Reconnect All or Quit) now switches it back to the Mac's input over DDC when it supports DDC. On a shared desk, the monitor's auto-input moves to the other computer when Blackout disconnects it, and it wouldn't come back to the Mac on its own while that computer was on. ([#6](https://github.com/miketomkins/Blackout/issues/6))
 - The About panel shows your actual shortcuts instead of always saying ⌃⌥L / R, and shows the version and build from the app bundle. ([#5](https://github.com/miketomkins/Blackout/issues/5))
 - `--connect-all` tries every monitor and reports all failures, like the menu's Reconnect All, instead of stopping at the first one. ([#5](https://github.com/miketomkins/Blackout/issues/5))
 - Quitting during logout, restart or shutdown no longer shows a dialog that blocks it when a monitor can't reconnect. ([#5](https://github.com/miketomkins/Blackout/issues/5))

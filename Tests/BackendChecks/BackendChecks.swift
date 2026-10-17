@@ -278,6 +278,29 @@ func rejects(_ operation: () throws -> Void, _ message: String) {
             ddcStore.inputSwitch(for: "right") == nil && ddcStore.switchedUUIDs.isEmpty,
             "leaving Switch input mode clears the away record")
 
+        // Disconnect mode on a shared desk: reconnecting brings the monitor back from the other computer's input.
+        let returnSuite = "com.miketomkins.Blackout.backendtests.return.\(UUID().uuidString)"
+        defer { UserDefaults(suiteName: returnSuite)?.removePersistentDomain(forName: returnSuite) }
+        let returnStore = PreferencesStore(suiteName: returnSuite)
+        let desk = SimulatedHardware()
+        let rightPanel = SimulatedDDCMonitor()
+        let deskBackend = DisplayBackend(
+            hardware: desk, lockPath: lock, settleTimeout: 0, ddcChannel: { $0.uuid == "right" ? rightPanel : nil },
+            ddcSleep: { _ in })
+        try deskBackend.setEnabled(uuid: "right", enabled: false, store: returnStore)
+        check(returnStore.returnInput(for: "right") == 0x0F, "disconnect records the input the Mac was using")
+        check(!rightPanel.writes.contains { $0.count > 1 && $0[1] == 0x03 }, "disconnecting sends no DDC writes")
+        rightPanel.vcp[0x60] = 0x1B  // The monitor's auto-input picks the other computer's live signal.
+        try deskBackend.setEnabled(uuid: "right", enabled: true, store: returnStore)
+        check(
+            rightPanel.vcp[0x60] == 0x0F && returnStore.returnInput(for: "right") == nil,
+            "reconnect switches the monitor back to the Mac's input")
+        try deskBackend.setEnabled(uuid: "left", enabled: false, store: returnStore)
+        try deskBackend.setEnabled(uuid: "left", enabled: true, store: returnStore)
+        check(
+            returnStore.returnInput(for: "left") == nil && desk.displays.count == 2,
+            "monitors without DDC disconnect and reconnect as before")
+
         print("Blackout backend tests: PASS (\(checks) assertions; simulated writes + real read-only native adapter)")
     }
 }

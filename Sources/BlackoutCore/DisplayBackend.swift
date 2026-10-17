@@ -163,6 +163,7 @@ public final class DisplayBackend {
                 }
             }
             store.remember(live + (current == nil ? [target] : []))
+            if !enabled { recordReturnInput(for: target, store: store) }
             if !enabled { store.setDisabled(uuid: uuid, disabled: true) }
             do { try hardware.apply(id: target.displayID, enabled: enabled) } catch {
                 if !enabled, (try? hardware.snapshot().contains(where: { $0.uuid == uuid && $0.active })) == true {
@@ -187,7 +188,26 @@ public final class DisplayBackend {
             }
             store.setDisabled(uuid: uuid, disabled: !enabled)
             store.remember(state)
+            if enabled, let monitor = state.first(where: { $0.uuid == uuid }) {
+                restoreReturnInput(for: monitor, store: store)
+            }
         }
+    }
+    // Best effort and silent: monitors without DDC simply keep today's behavior. These run inside withLock, so they
+    // use the DDC engine directly rather than the locked input-switch methods.
+    private func recordReturnInput(for monitor: MonitorRecord, store: PreferencesStore) {
+        guard !store.switchedUUIDs.contains(monitor.uuid), let channel = ddcChannel(monitor) else { return }
+        let input =
+            store.inputSwitch(for: monitor.uuid)?.macInput
+            ?? (try? DDC(transport: channel, sleep: ddcSleep).currentInput())
+        store.setReturnInput(input, for: monitor.uuid)
+    }
+    private func restoreReturnInput(for monitor: MonitorRecord, store: PreferencesStore) {
+        guard let wanted = store.returnInput(for: monitor.uuid) else { return }
+        store.setReturnInput(nil, for: monitor.uuid)
+        guard let channel = ddcChannel(monitor) else { return }
+        let ddc = DDC(transport: channel, sleep: ddcSleep)
+        if (try? ddc.currentInput()) != wanted { try? ddc.switchInput(to: wanted) }
     }
     // MARK: Input switching (DDC/CI)
 
