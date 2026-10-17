@@ -54,7 +54,7 @@ The initial prebuilt beta requires **macOS 26 or later on Apple Silicon**. It wa
 
 Unzip and move `Blackout.app` into Applications. Open it and look for the monitor icon in the menu bar. Launch at Login is optional and can require macOS approval.
 
-The build is **ad-hoc signed, not Developer ID signed or notarized**; macOS may block a downloaded copy. Build from source if you do not want to run the distributed local build. The initial beta's app bundle displays version 1.0.0; its public release tag is `v1.0.0-beta.1`.
+The build is **ad-hoc signed, not Developer ID signed or notarized**; macOS may block a downloaded copy. Build from source if you do not want to run the distributed local build. During the beta, the app shows version 1.0.0 with a build number (beta 1 is build 1, beta 2 is build 2), and the release tag carries the beta number, such as `v1.0.0-beta.2`.
 
 ## Build and test
 
