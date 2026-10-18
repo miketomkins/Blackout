@@ -21,6 +21,10 @@ jobs:
           swift format --version
       - name: Lint
         run: swift format lint --strict --recursive Sources Tests Package.swift Assets/generate-icon.swift
+      - name: QA helper compiles
+        # The manual acceptance helper is outside the package; typecheck it so framework API drift fails
+        # CI instead of surfacing during live acceptance. Nothing runs it.
+        run: swiftc -typecheck -sdk "$(xcrun --show-sdk-path)" Tests/BlackoutQA.swift
       - name: Build and test
         # test.sh builds the app, runs CoreChecks and BackendChecks (simulated hardware plus a
         # read-only native display read) and the CLI tests. Nothing disconnects a display.

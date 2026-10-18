@@ -4,6 +4,9 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+- CI typechecks the manual `BlackoutQA` acceptance helper so it cannot drift, and the README documents building and running it. ([#23](https://github.com/miketomkins/Blackout/issues/23))
+
 ### Changed
 - `MonitorPolicy.canDisable` no longer takes a `disabled` set it never read; the last-display guard stays decided by live OS state alone. ([#22](https://github.com/miketomkins/Blackout/issues/22))
 
