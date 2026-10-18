@@ -291,6 +291,19 @@ func rejects(_ operation: () throws -> Void, _ message: String) {
             { try switcher.toggleInput(uuid: "right", store: ddcStore) },
             "no DDC switching for a monitor that isn't on the desktop")
         check(panels["right"]!.writes.count == before, "refused switches send nothing to the monitor")
+        // Switched to the other computer, then unplugged from the Mac (say a laptop leaving the desk).
+        ddcStore.setSwitched(uuid: "right", switched: true)
+        try switcher.returnInputToMac(uuid: "right", store: ddcStore)
+        check(
+            ddcStore.switchedUUIDs == ["right"] && panels["right"]!.writes.count == before,
+            "an unplugged switched monitor is skipped without error and stays recorded as away")
+        ddcHardware.displays = ddcHardware.initial
+        panels["right"]!.vcp[0x60] = 0x1B
+        try switcher.returnInputToMac(uuid: "right", store: ddcStore)
+        check(
+            panels["right"]!.vcp[0x60] == 0x0F && ddcStore.switchedUUIDs.isEmpty,
+            "plugged back in, it returns to the Mac")
+        ddcHardware.displays.removeAll { $0.uuid == "right" }
         ddcStore.setInputSwitch(nil, for: "right")
         check(
             ddcStore.inputSwitch(for: "right") == nil && ddcStore.switchedUUIDs.isEmpty,

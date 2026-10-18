@@ -11,6 +11,9 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 - A second display operation now waits up to 10 seconds, not 3, for one already in progress, so a command run while a slow monitor is reconnecting no longer fails with "Another display operation is busy". ([#29](https://github.com/miketomkins/Blackout/issues/29))
 - `MonitorPolicy.canDisable` no longer takes a `disabled` set it never read; the last-display guard stays decided by live OS state alone. ([#22](https://github.com/miketomkins/Blackout/issues/22))
 
+### Fixed
+- A Switch-input monitor that was on the other computer and then unplugged from the Mac no longer makes Reconnect All, `--connect-all` and Quit report a failure every time. It's skipped and still remembered as away, so Reconnect All brings it back once it's plugged in again. ([#28](https://github.com/miketomkins/Blackout/issues/28))
+
 ## [1.2.0] - 2026-10-16
 
 ### Added

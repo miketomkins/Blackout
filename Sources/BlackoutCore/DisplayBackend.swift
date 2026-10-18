@@ -255,10 +255,12 @@ public final class DisplayBackend {
         }
     }
 
-    /// Brings a monitor back to the Mac's input (Reconnect All, Quit).
+    /// Brings a monitor back to the Mac's input (Reconnect All, Quit). A monitor that isn't plugged into the Mac at
+    /// all is skipped, not an error: it stays recorded as away, so Reconnect All brings it back once it's plugged in.
     public func returnInputToMac(uuid: String, store: PreferencesStore) throws {
         try withLock {
             let setting = try inputSetting(uuid: uuid, store: store)
+            if !store.disabledUUIDs.contains(uuid), !(try onlineUUIDs().contains(uuid)) { return }
             let ddc = try ddcForLiveMonitor(uuid: uuid, store: store)
             try ddc.switchInput(to: setting.macInput)
             store.setSwitched(uuid: uuid, switched: false)
