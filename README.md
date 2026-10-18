@@ -73,6 +73,17 @@ The build targets the current compiler's host architecture and deployment defaul
 
 Tests cover policy, saved settings, simulated hardware failures/reconnects and the real command-line interface. The suite includes real **read-only** native display enumeration and therefore expects an active macOS graphical session with a display. Tests do not disconnect physical monitors. `Tests/BlackoutQA.swift` is a separate manual acceptance helper: its explicit keyboard and Accessibility actions can affect a running app and are not run by `test.sh`.
 
+`BlackoutQA` sits outside the package, so CI typechecks it and framework API drift cannot break it silently. Build it yourself to drive the real app; its subcommands act for real and need Accessibility permission:
+
+```sh
+swiftc -o build/blackout-qa Tests/BlackoutQA.swift
+build/blackout-qa displays                                              # JSON display inventory
+build/blackout-qa key 37 control option                                 # post a real ⌃⌥L press
+build/blackout-qa dump $(pgrep Blackout)                                # Accessibility tree of the running app
+build/blackout-qa press $(pgrep Blackout) "blackout.save"               # press a control by identifier or title
+build/blackout-qa set $(pgrep Blackout) "monitor.name.UUID" "Studio Right"  # type into a field
+```
+
 ## Command line
 
 ```sh
