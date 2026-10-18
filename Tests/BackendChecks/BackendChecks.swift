@@ -129,6 +129,12 @@ func rejects(_ operation: () throws -> Void, _ message: String) {
         rejects(
             { try backend.setEnabled(uuid: "left", enabled: false, store: store) }, "last-active guard rejects write")
         check(hw.calls.count == 1, "last-active rejection performs no native write")
+        try backend.clearStaleDisabled(store: store)
+        check(store.disabledUUIDs == ["right"], "a monitor that is still off keeps its flag")
+        store.setDisabled(uuid: "left", disabled: true)
+        try backend.clearStaleDisabled(store: store)
+        check(
+            store.disabledUUIDs == ["right"], "an active monitor's flag is stale (the session restored it) and clears")
         let restarted = PreferencesStore(suiteName: suite)
         try DisplayBackend(hardware: hw, lockPath: lock, settleTimeout: 0).setEnabled(
             uuid: "right", enabled: true, store: restarted)
