@@ -74,15 +74,18 @@ public final class DisplayBackend {
     private let hardware: DisplayHardware
     private let lockPath: String
     private let settleTimeout: TimeInterval
+    private let lockTimeout: TimeInterval
     private let ddcChannel: (MonitorRecord) -> DDCTransport?
     private let ddcSleep: (UInt32) -> Void
     public init(
         hardware: DisplayHardware = NativeDisplayHardware(), lockPath: String? = nil, settleTimeout: TimeInterval = 3,
+        lockTimeout: TimeInterval = DisplayBackend.defaultLockTimeout,
         ddcChannel: @escaping (MonitorRecord) -> DDCTransport? = { NativeDDCTransport.forDisplay($0.displayID) },
         ddcSleep: @escaping (UInt32) -> Void = { usleep($0) }
     ) {
         self.hardware = hardware
         self.settleTimeout = settleTimeout
+        self.lockTimeout = lockTimeout
         self.ddcChannel = ddcChannel
         self.ddcSleep = ddcSleep
         self.lockPath = lockPath ?? (NSHomeDirectory() + "/Library/Application Support/Blackout/display.lock")
@@ -286,6 +289,11 @@ public final class DisplayBackend {
         return DDC(transport: channel, sleep: ddcSleep)
     }
 
+    /// How long a second operation waits before calling the first one stuck. It must outlast the longest legitimate
+    /// hold: a change waits up to settleTimeout (3 s) for macOS, then a reconnect can restore the monitor's input
+    /// over DDC (a read of up to ~0.5 s, then a switch verified for up to ~3 s), about 6.5 s in all.
+    public static let defaultLockTimeout: TimeInterval = 10
+
     private func withLock<T>(_ body: () throws -> T) throws -> T {
         let parent = URL(fileURLWithPath: lockPath).deletingLastPathComponent()
         try FileManager.default.createDirectory(
@@ -296,7 +304,7 @@ public final class DisplayBackend {
             flock(fd, LOCK_UN)
             close(fd)
         }
-        let end = Date().addingTimeInterval(3)
+        let end = Date().addingTimeInterval(lockTimeout)
         while flock(fd, LOCK_EX | LOCK_NB) != 0 {
             guard Date() < end else { throw BlackoutError.failed("Another display operation is busy. Try again.") }
             Thread.sleep(forTimeInterval: 0.02)

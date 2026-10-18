@@ -190,6 +190,21 @@ func rejects(_ operation: () throws -> Void, _ message: String) {
             ShortcutSpec.keyCodes["l"] == 37 && ShortcutSpec.keyCodes["r"] == 15,
             "virtual keycodes are not ASCII character codes")
         check(!ShortcutSpec.validate([.reconnectAll, .reconnectAll]), "Reconnect All key cannot be duplicated")
+        // Another process holding the lock: a waiter with enough patience gets it, an impatient one reports busy.
+        let holder = open(lock, O_RDWR)
+        check(holder >= 0 && flock(holder, LOCK_EX) == 0, "test can hold the operation lock")
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) {
+            flock(holder, LOCK_UN)
+            close(holder)
+        }
+        let impatient = DisplayBackend(hardware: hw, lockPath: lock, settleTimeout: 0, lockTimeout: 0.1)
+        do {
+            try impatient.setEnabled(uuid: "right", enabled: true, store: store)
+            check(false, "an impatient waiter reports a busy lock")
+        } catch { check("\(error)".contains("busy"), "an impatient waiter reports a busy lock") }
+        let patient = DisplayBackend(hardware: hw, lockPath: lock, settleTimeout: 0, lockTimeout: 2)
+        try patient.setEnabled(uuid: "right", enabled: true, store: store)
+        check(true, "a patient waiter gets the lock once the holder lets go")
         let native = try NativeDisplayHardware().snapshot()
         check(
             !native.isEmpty && native.allSatisfy { $0.displayID != 0 && UUID(uuidString: $0.uuid) != nil },

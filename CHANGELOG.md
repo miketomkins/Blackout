@@ -8,6 +8,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 - CI typechecks the manual `BlackoutQA` acceptance helper so it cannot drift, and the README documents building and running it. ([#23](https://github.com/miketomkins/Blackout/issues/23))
 
 ### Changed
+- A second display operation now waits up to 10 seconds, not 3, for one already in progress, so a command run while a slow monitor is reconnecting no longer fails with "Another display operation is busy". ([#29](https://github.com/miketomkins/Blackout/issues/29))
 - `MonitorPolicy.canDisable` no longer takes a `disabled` set it never read; the last-display guard stays decided by live OS state alone. ([#22](https://github.com/miketomkins/Blackout/issues/22))
 
 ## [1.2.0] - 2026-10-16
