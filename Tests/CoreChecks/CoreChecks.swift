@@ -15,11 +15,11 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
         let left = MonitorRecord(uuid: "left", alias: "Left", x: -3840, isBuiltIn: false)
         let right = MonitorRecord(uuid: "right", alias: "Right", x: 0, isBuiltIn: false)
         let other = MonitorRecord(uuid: "other", alias: "Other", x: 3840, isBuiltIn: false)
-        check(MonitorPolicy.canDisable(target: right, active: [left, right], disabled: []), "can disable one of two")
+        check(MonitorPolicy.canDisable(target: right, active: [left, right]), "can disable one of two")
         check(
-            !MonitorPolicy.canDisable(target: right, active: [left, other], disabled: []),
+            !MonitorPolicy.canDisable(target: right, active: [left, other]),
             "cannot disable identity absent from fresh active snapshot")
-        check(!MonitorPolicy.canDisable(target: right, active: [right], disabled: []), "cannot disable last active")
+        check(!MonitorPolicy.canDisable(target: right, active: [right]), "cannot disable last active")
         check(
             ShortcutSpec.parse("ctrl+alt+l") == ShortcutSpec(modifiers: [.control, .option], key: "l"), "parse shortcut"
         )
