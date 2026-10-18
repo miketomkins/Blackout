@@ -22,7 +22,7 @@ public struct MonitorRecord: Codable, Equatable {
 }
 
 public enum MonitorPolicy {
-    public static func canDisable(target: MonitorRecord, active: [MonitorRecord], disabled: Set<String>) -> Bool {
+    public static func canDisable(target: MonitorRecord, active: [MonitorRecord]) -> Bool {
         guard !target.isBuiltIn, active.contains(where: { $0.uuid == target.uuid && $0.active }) else { return false }
         // Actual OS state wins over a stale saved ownership flag.
         return active.filter { $0.active }.count > 1

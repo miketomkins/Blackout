@@ -4,6 +4,9 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Changed
+- `MonitorPolicy.canDisable` no longer takes a `disabled` set it never read; the last-display guard stays decided by live OS state alone. ([#22](https://github.com/miketomkins/Blackout/issues/22))
+
 ## [1.2.0] - 2026-10-16
 
 ### Added

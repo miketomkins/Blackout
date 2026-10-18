@@ -144,7 +144,7 @@ public final class DisplayBackend {
                 return
             }
             if !enabled {
-                guard MonitorPolicy.canDisable(target: target, active: live, disabled: []) else {
+                guard MonitorPolicy.canDisable(target: target, active: live) else {
                     throw BlackoutError.unsafe(
                         "The last active display must stay on. Built-in displays are also protected.")
                 }
