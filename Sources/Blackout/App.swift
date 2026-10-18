@@ -42,6 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if id == 999 { self.reconnectAll() } else if let uuid = self.bindings[id] { self.toggleUUID(uuid) }
         }
         hotkeys.reserve(id: 999, spec: .reconnectAll)
+        // Monitors Blackout turned off before a logout or restart are back on now; drop their stale flags.
+        operations.async { [backend, store] in try? backend.clearStaleDisabled(store: store) }
         do {
             let monitors = try backend.enumerate(store: store)
             updateShortcutError(configureHotkeys(monitors: monitors))
@@ -241,16 +243,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         var errors: [String] = []
         operations.sync {}  // Let an in-flight change finish before restoring displays.
+        // At logout or shutdown, change nothing and never block with a dialog. Display changes are session-scoped
+        // (.forSession in NativeDisplayHardware.apply), so monitors Blackout turned off come back at the next login,
+        // where launch clears their flags. Reconnecting now would only delay logout and, by restoring each monitor's
+        // input, pull it back from the other computer; switched monitors likewise stay on the other computer.
+        guard !poweringOff else { return .terminateNow }
         store.reload()
-        // At logout or shutdown the Mac's picture is going away anyway; leave monitors on the other computer.
-        if !poweringOff { errors += Self.returnSwitchedInputs(backend: backend, store: store) }
+        errors += Self.returnSwitchedInputs(backend: backend, store: store)
         for uuid in store.disabledUUIDs {
             do { try backend.setEnabled(uuid: uuid, enabled: true, store: store) } catch {
                 errors.append(error.localizedDescription)
             }
         }
-        // Never block logout, restart or shutdown with a dialog: displays set off for this session return at the next login.
-        if !errors.isEmpty, !poweringOff {
+        if !errors.isEmpty {
             let alert = NSAlert()
             alert.messageText = "Some monitors could not reconnect"
             alert.informativeText =

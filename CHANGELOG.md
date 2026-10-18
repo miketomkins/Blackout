@@ -13,6 +13,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 ### Fixed
 - A Switch-input monitor that was on the other computer and then unplugged from the Mac no longer makes Reconnect All, `--connect-all` and Quit report a failure every time. It's skipped and still remembered as away, so Reconnect All brings it back once it's plugged in again. ([#28](https://github.com/miketomkins/Blackout/issues/28))
+- Logout, restart and shutdown no longer wait while Blackout reconnects the monitors it turned off. Display changes last only for the login session, so macOS restores those monitors at the next login. Reconnecting them also switched them back from the other computer. On launch, Blackout clears its "turned off" mark for monitors that are back on. ([#33](https://github.com/miketomkins/Blackout/issues/33))
 
 ## [1.2.0] - 2026-10-16
 

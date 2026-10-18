@@ -123,6 +123,17 @@ public final class DisplayBackend {
             store.forget(uuid: uuid)
         }
     }
+    /// Clears "Blackout turned this off" for monitors macOS reports active again. Display changes are session-scoped
+    /// (.forSession in NativeDisplayHardware.apply), so after a logout or restart every monitor comes back on its own.
+    public func clearStaleDisabled(store: PreferencesStore) throws {
+        try withLock {
+            store.reload()
+            let active = Set(try hardware.snapshot().filter(\.active).map(\.uuid))
+            for uuid in store.disabledUUIDs where active.contains(uuid) {
+                store.setDisabled(uuid: uuid, disabled: false)
+            }
+        }
+    }
     public func setEnabled(uuid: String, enabled: Bool, store: PreferencesStore) throws {
         try change(uuid: uuid, desired: enabled, store: store)
     }

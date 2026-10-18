@@ -20,7 +20,7 @@ Blackout is built for desks where external monitors are shared between a Mac and
 - Protect the last active display and built-in displays.
 - Optional Launch at Login through macOS ServiceManagement.
 - Remember disconnected monitors across app restarts, and forget monitors that are no longer connected.
-- Reconnect displays Blackout disabled when quitting normally (Quit asks for confirmation first).
+- Reconnect displays Blackout disabled when quitting normally (Quit asks for confirmation first). At logout or shutdown Blackout leaves them alone: macOS brings them back at the next login.
 
 ### Two-monitor defaults
 
