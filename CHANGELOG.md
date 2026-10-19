@@ -4,6 +4,8 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-19
+
 ### Added
 - **Check for Updates…** in the menu: asks GitHub for the newest release, including pre-releases, and installs it only after you confirm. Updates must carry an Ed25519 signature from the release key, a matching checksum and an intact Blackout app at the release's version; anything else is refused and the installed app is left alone. Installing quits Blackout normally, swaps in the new app and reopens it. `--check-update` does the check from the command line. `release.sh` and `ReleaseTool` package and sign releases. ([#37](https://github.com/miketomkins/Blackout/issues/37))
 - CI typechecks the manual `BlackoutQA` acceptance helper so it cannot drift, and the README documents building and running it. ([#23](https://github.com/miketomkins/Blackout/issues/23))
@@ -48,6 +50,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 - Menu-bar disconnect/reconnect for external monitors, custom names and global shortcuts, Reconnect All, Launch at Login, and a command-line interface. See the README for known limitations.
 
-[Unreleased]: https://github.com/miketomkins/Blackout/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/miketomkins/Blackout/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/miketomkins/Blackout/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/miketomkins/Blackout/compare/v1.0.0-beta.1...v1.2.0
 [1.0.0-beta.1]: https://github.com/miketomkins/Blackout/releases/tag/v1.0.0-beta.1
