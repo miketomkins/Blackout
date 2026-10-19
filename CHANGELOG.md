@@ -5,6 +5,7 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 ## [Unreleased]
 
 ### Added
+- **Check for Updates…** in the menu: asks GitHub for the newest release, including pre-releases, and installs it only after you confirm. Updates must carry an Ed25519 signature from the release key, a matching checksum and an intact Blackout app at the release's version; anything else is refused and the installed app is left alone. Installing quits Blackout normally, swaps in the new app and reopens it. `--check-update` does the check from the command line. `release.sh` and `ReleaseTool` package and sign releases. ([#37](https://github.com/miketomkins/Blackout/issues/37))
 - CI typechecks the manual `BlackoutQA` acceptance helper so it cannot drift, and the README documents building and running it. ([#23](https://github.com/miketomkins/Blackout/issues/23))
 
 ### Changed

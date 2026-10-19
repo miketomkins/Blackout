@@ -20,6 +20,7 @@ Blackout is built for desks where external monitors are shared between a Mac and
 - Protect the last active display and built-in displays.
 - Optional Launch at Login through macOS ServiceManagement.
 - Remember disconnected monitors across app restarts, and forget monitors that are no longer connected.
+- Check for Updates… from the menu: installs a newer release only after you confirm.
 - Reconnect displays Blackout disabled when quitting normally (Quit asks for confirmation first). At logout or shutdown Blackout leaves them alone: macOS brings them back at the next login.
 
 ### Two-monitor defaults
@@ -54,6 +55,16 @@ The initial prebuilt beta requires **macOS 26 or later on Apple Silicon**. It wa
 
 Unzip and move `Blackout.app` into Applications. Open it and look for the monitor icon in the menu bar. Launch at Login is optional and can require macOS approval.
 
+### Updating
+
+Choose **Check for Updates…** from the menu. Blackout never checks by itself. It asks GitHub for the newest published release, including pre-releases, and tells you whether you're up to date. If a newer version exists, it shows the release notes with **Install and Relaunch** or **Later**. Installing:
+
+1. Downloads the release ZIP, its checksum and its signature.
+2. Refuses the update unless the signature verifies against the release key built into Blackout, the checksum matches, and the app inside is Blackout at exactly the release's version with an intact code signature.
+3. Quits Blackout, which reconnects monitors it turned off and returns switched monitors to the Mac as any Quit does, swaps in the new app and reopens it. Settings and shortcuts are kept.
+
+If anything fails, the installed app is left as it was and Blackout offers the release page instead. It also does that when it can't write to the folder it's in. Versions before the first one with this menu item (1.2.0 and earlier) must be updated by hand once.
+
 The build is **ad-hoc signed, not Developer ID signed or notarized**; macOS may block a downloaded copy. Build from source if you do not want to run the distributed local build. The app's version matches its release tag: version 1.2.0 is `v1.2.0`. The first beta was version 1.0.0, tagged `v1.0.0-beta.1`.
 
 ## Build and test
@@ -84,6 +95,16 @@ build/blackout-qa press $(pgrep -x Blackout) "blackout.save"            # press 
 build/blackout-qa set $(pgrep -x Blackout) "monitor.name.UUID" "Studio Right"  # type into a field
 ```
 
+## Publishing a release (maintainer)
+
+Releases are signed so that Check for Updates… can tell a real release from a tampered one.
+
+1. Once per Mac: `swift run ReleaseTool keygen` creates the Ed25519 signing key in the login keychain and prints its public key, which goes in `UpdateConfig.signingPublicKey`. Back the key up somewhere safe, such as a password manager: `security find-generic-password -s com.miketomkins.Blackout.release-signing -a ed25519 -w`. Without it, future releases can't be signed, and installed copies will refuse unsigned updates.
+2. Set the version in `build.sh` and move the CHANGELOG's Unreleased entries under it.
+3. `bash release.sh` runs the tests and writes the ZIP, `.sha256` and `.sig` to `dist/`, verifies them as the app will, and prints the `gh release create` command. The tag must be `v` plus the app's version.
+
+To change keys, first ship a release signed with the old key whose `UpdateConfig` holds the new public key.
+
 ## Command line
 
 ```sh
@@ -94,12 +115,13 @@ build/blackout-qa set $(pgrep -x Blackout) "monitor.name.UUID" "Studio Right"  #
 /Applications/Blackout.app/Contents/MacOS/Blackout --disconnect UUID
 /Applications/Blackout.app/Contents/MacOS/Blackout --connect-all
 /Applications/Blackout.app/Contents/MacOS/Blackout --inputs
+/Applications/Blackout.app/Contents/MacOS/Blackout --check-update
 /Applications/Blackout.app/Contents/MacOS/Blackout --show-settings
 ```
 
-Use the exact UUID from `--list`, not an array index. `--list` and `--diagnostics` are read-only. `--inputs` only asks monitors for their inputs over DDC; it changes nothing on them, and it caches each monitor's input list. Mutating operations are serialized between app and CLI processes. Unknown/incomplete arguments are rejected.
+Use the exact UUID from `--list`, not an array index. `--list` and `--diagnostics` are read-only. `--inputs` only asks monitors for their inputs over DDC; it changes nothing on them, and it caches each monitor's input list. `--check-update` asks GitHub for the newest release and installs nothing. Mutating operations are serialized between app and CLI processes. Unknown/incomplete arguments are rejected.
 
-Preferences use the `com.miketomkins.Blackout.preferences` UserDefaults domain. The display-operation lock is in the current user's `Library/Application Support/Blackout` directory. Blackout has no network service, telemetry or runtime dependency on BetterDisplay. Carbon shortcuts do not require Accessibility permission.
+Preferences use the `com.miketomkins.Blackout.preferences` UserDefaults domain. The display-operation lock is in the current user's `Library/Application Support/Blackout` directory. Blackout has no network service, telemetry or runtime dependency on BetterDisplay. It contacts GitHub only when you choose Check for Updates… (or run `--check-update`). Carbon shortcuts do not require Accessibility permission.
 
 ## Known beta limitations
 

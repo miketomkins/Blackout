@@ -80,9 +80,20 @@ do {
         guard failures.isEmpty else { throw BlackoutError.failed(failures.joined(separator: "\n")) }
         exit(0)
     }
+    if args == ["--check-update"] {
+        // Read-only: asks GitHub for the newest release; installs nothing.
+        var row: [String: Any] = ["current": appVersion, "updateAvailable": false]
+        if let update = try UpdateChecker(http: URLSessionHTTP(appVersion: appVersion)).check(current: appVersion) {
+            row["updateAvailable"] = true
+            row["latest"] = update.version.description
+            row["release"] = update.release.page.absoluteString
+        }
+        try output(row)
+        exit(0)
+    }
     if args == ["--help"] {
         print(
-            "Blackout \(appVersion)\n  --list                 Read-only display inventory JSON\n  --diagnostics          Read-only login/preference status\n  --inputs               Report inputs over DDC as JSON (changes nothing on the monitors)\n  --toggle UUID          Toggle a monitor (disconnect or switch input, per its mode)\n  --connect UUID         Reconnect a known monitor\n  --disconnect UUID      Disconnect a monitor (last display protected)\n  --connect-all          Reconnect monitors and bring switched inputs back to the Mac\n  --show-settings        Open Settings\nNo arguments launches the menu-bar app. Quit reconnects monitors Blackout disabled and returns switched inputs to the Mac."
+            "Blackout \(appVersion)\n  --list                 Read-only display inventory JSON\n  --diagnostics          Read-only login/preference status\n  --inputs               Report inputs over DDC as JSON (changes nothing on the monitors)\n  --toggle UUID          Toggle a monitor (disconnect or switch input, per its mode)\n  --connect UUID         Reconnect a known monitor\n  --disconnect UUID      Disconnect a monitor (last display protected)\n  --connect-all          Reconnect monitors and bring switched inputs back to the Mac\n  --check-update         Ask GitHub whether a newer release exists (installs nothing)\n  --show-settings        Open Settings\nNo arguments launches the menu-bar app. Quit reconnects monitors Blackout disabled and returns switched inputs to the Mac."
         )
         exit(0)
     }
