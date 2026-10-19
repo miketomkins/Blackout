@@ -338,6 +338,8 @@ func rejects(_ operation: () throws -> Void, _ message: String) {
             returnStore.returnInput(for: "left") == nil && desk.displays.count == 2,
             "monitors without DDC disconnect and reconnect as before")
 
+        try updateInstallChecks()
+
         print("Blackout backend tests: PASS (\(checks) assertions; simulated writes + real read-only native adapter)")
     }
 }

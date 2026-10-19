@@ -143,6 +143,7 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
             cleared.shortcut(for: "right") == nil && cleared.hasShortcutSetting(for: "right"),
             "a cleared shortcut is not re-seeded")
         UserDefaults(suiteName: clearSuite)?.removePersistentDomain(forName: clearSuite)
+        updateChecks()
         print("Blackout core tests: PASS (\(checks) assertions)")
     }
 }

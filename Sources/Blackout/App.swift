@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let store = PreferencesStore()
     let backend = DisplayBackend()
     let hotkeys = HotkeyManager()
+    let updates = UpdateController()
     var statusItem: NSStatusItem!
     let menu = NSMenu()
     var settingsWindow: NSWindow?
@@ -33,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.toolTip = "Blackout — monitor toggles"
         menu.delegate = self
         statusItem.menu = menu
+        updates.onStateChange = { [weak self] in self?.buildMenu() }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.poweringOff = true }
@@ -138,6 +140,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
+        let update = NSMenuItem(title: updates.menuTitle, action: #selector(checkForUpdates), keyEquivalent: "")
+        update.target = self
+        update.isEnabled = updates.state == .idle
+        menu.addItem(update)
         let about = NSMenuItem(title: "About Blackout", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -210,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
+    @objc func checkForUpdates() { updates.check() }
     @objc func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
         // Version and build come from Info.plist; credits are just the author and the project link.
@@ -262,7 +269,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 errors.joined(separator: "\n") + "\nQuit anyway? Blackout will remember them for next launch."
             alert.addButton(withTitle: "Cancel")
             alert.addButton(withTitle: "Quit Anyway")
-            if alert.runModal() == .alertFirstButtonReturn { return .terminateCancel }
+            if alert.runModal() == .alertFirstButtonReturn {
+                updates.quitCancelled()
+                return .terminateCancel
+            }
         }
         return .terminateNow
     }
