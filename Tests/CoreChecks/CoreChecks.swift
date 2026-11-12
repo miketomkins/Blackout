@@ -1,4 +1,5 @@
 import BlackoutCore
+import CoreServices
 import Foundation
 
 var checks = 0
@@ -144,6 +145,36 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
             "a cleared shortcut is not re-seeded")
         UserDefaults(suiteName: clearSuite)?.removePersistentDomain(forName: clearSuite)
         updateChecks()
+        quitPolicyChecks()
         print("Blackout core tests: PASS (\(checks) assertions)")
     }
+}
+
+func quitEvent(_ eventClass: AEEventClass, _ eventID: AEEventID, reason: OSType?) -> NSAppleEventDescriptor {
+    let event = NSAppleEventDescriptor(
+        eventClass: eventClass, eventID: eventID, targetDescriptor: nil,
+        returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
+    if let reason {
+        event.setAttribute(NSAppleEventDescriptor(enumCode: reason), forKeyword: AEKeyword(kAEQuitReason))
+    }
+    return event
+}
+
+func quitPolicyChecks() {
+    let core = AEEventClass(kCoreEventClass)
+    let quit = AEEventID(kAEQuitApplication)
+    check(!QuitPolicy.isSystemQuit(nil), "a Quit chosen in the app (no Apple event) is not a system quit")
+    check(!QuitPolicy.isSystemQuit(quitEvent(core, quit, reason: nil)), "a scripted quit without a reason is not")
+    let reasons: [OSType] = [
+        OSType(kAELogOut), OSType(kAEReallyLogOut), OSType(kAERestart), OSType(kAEShutDown),
+        OSType(kAEShowRestartDialog), OSType(kAEShowShutdownDialog),
+    ]
+    for reason in reasons {
+        check(
+            QuitPolicy.isSystemQuit(quitEvent(core, quit, reason: reason)),
+            "loginwindow's quit with reason \(reason) is a system quit")
+    }
+    check(
+        !QuitPolicy.isSystemQuit(quitEvent(core, AEEventID(kAEOpenApplication), reason: OSType(kAERestart))),
+        "only the quit event counts, even if another event carries a reason")
 }

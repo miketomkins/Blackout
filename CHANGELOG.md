@@ -4,6 +4,9 @@ All notable changes to Blackout are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Fixed
+- Blackout no longer blocks or cancels a restart, shutdown or logout. It now reads the reason on macOS's quit request instead of relying on a notification that can arrive too late. When that notification lost the race, Blackout ran the full menu-Quit teardown on the main thread and, if a monitor failed to reconnect, showed a dialog whose default button cancelled the restart. A system quit also no longer waits for a display change that's still in progress, and in the menu-Quit failure dialog Return now means Quit Anyway. ([#40](https://github.com/miketomkins/Blackout/issues/40))
+
 ## [1.3.0] - 2026-10-19
 
 ### Added
