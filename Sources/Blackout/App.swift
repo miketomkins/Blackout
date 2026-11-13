@@ -248,13 +248,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.terminate(nil)
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // At logout, restart or shutdown, change nothing, wait for nothing and never block with a dialog. Display
+        // changes are session-scoped (.forSession in NativeDisplayHardware.apply), so monitors Blackout turned off
+        // come back at the next login, where launch clears their flags. Reconnecting now would only delay logout and,
+        // by restoring each monitor's input, pull it back from the other computer; switched monitors likewise stay on
+        // the other computer. The quit Apple event's reason is the reliable signal: willPowerOffNotification is not
+        // guaranteed to arrive before this call, so poweringOff alone could send a restart down the Quit path below.
+        if poweringOff || QuitPolicy.isSystemQuit(NSAppleEventManager.shared().currentAppleEvent) {
+            return .terminateNow
+        }
         var errors: [String] = []
         operations.sync {}  // Let an in-flight change finish before restoring displays.
-        // At logout or shutdown, change nothing and never block with a dialog. Display changes are session-scoped
-        // (.forSession in NativeDisplayHardware.apply), so monitors Blackout turned off come back at the next login,
-        // where launch clears their flags. Reconnecting now would only delay logout and, by restoring each monitor's
-        // input, pull it back from the other computer; switched monitors likewise stay on the other computer.
-        guard !poweringOff else { return .terminateNow }
         store.reload()
         errors += Self.returnSwitchedInputs(backend: backend, store: store)
         for uuid in store.disabledUUIDs {
@@ -267,9 +271,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             alert.messageText = "Some monitors could not reconnect"
             alert.informativeText =
                 errors.joined(separator: "\n") + "\nQuit anyway? Blackout will remember them for next launch."
-            alert.addButton(withTitle: "Cancel")
+            // Quit Anyway is the default so Return quits as asked; Cancel (or Esc) keeps Blackout running.
             alert.addButton(withTitle: "Quit Anyway")
-            if alert.runModal() == .alertFirstButtonReturn {
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() == .alertSecondButtonReturn {
                 updates.quitCancelled()
                 return .terminateCancel
             }
